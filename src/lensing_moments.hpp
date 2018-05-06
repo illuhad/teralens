@@ -38,7 +38,7 @@
 
 namespace teralens {
 
-using lensing_multipole_expansion = spatialcl::cl_vector_type<scalar, 16>;
+using lensing_multipole_expansion = spatialcl::cl_vector_type<scalar, 16>::value;
 
 class lensing_moments
 {

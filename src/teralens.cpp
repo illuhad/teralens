@@ -70,7 +70,7 @@ int main(int argc, char** argv)
   pixel_screen.read(image.data(), pixel_screen.begin(), pixel_screen.end());
 
   // Save results
-  teralens::util::fits output{"teralens.fits"};
+  teralens::util::fits<int> output{"teralens.fits"};
   output.save(image);
 
 }

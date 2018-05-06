@@ -56,11 +56,14 @@ public:
       : _shooting_region_center{shooting_region_center},
         _shooting_region_extent{shooting_region_extent},
         _primary_ray_separation{primary_ray_separation},
-        _num_px_x{num_px_x},
-        _num_px_y{num_px_y},
+
         _shear{shear},
         _convergence{convergence},
         _opening_angle_squared{opening_angle * opening_angle},
+
+        _num_px_x{num_px_x},
+        _num_px_y{num_px_y},
+
         _pixel_screen{ctx, num_px_x * num_px_y},
         _pixel_size{pixel_size},
         _pixel_screen_center{pixel_screen_center}
@@ -105,7 +108,7 @@ public:
     return this->get_total_num_rays();
   }
 
-  virtual ~deflection_angle_query(){}
+  virtual ~ray_grid_query(){}
 
   std::size_t get_num_rays_x() const
   {

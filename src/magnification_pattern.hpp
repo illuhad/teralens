@@ -164,7 +164,13 @@ public:
                              std::size_t num_rays_ppx,
                              scalar tree_opening_angle = 0.4)
   {
-    vector2 primary_ray_separation = ;
+
+    scalar ray_distance = _system.get_source_plane_size() /
+        (std::sqrt(static_cast<scalar>(num_rays_ppx)) * resolution);
+
+    vector2 primary_ray_separation;
+    primary_ray_separation.s[0] = ray_distance;
+    primary_ray_separation.s[1] = ray_distance;
 
     ray_grid_query lensing_query{
       _ctx,
@@ -202,9 +208,9 @@ public:
     query_engine_type lensing_query_engine;
     lensing_query_engine(this->_tree, lensing_query);
 
-    cl_int err = qcl::check_cl_error(_ctx->get_command_queue().finish(),
-                                     "Error while waiting for the lensing query "
-                                     "to finish.");
+    qcl::check_cl_error(_ctx->get_command_queue().finish(),
+                        "Error while waiting for the lensing query "
+                        "to finish.");
     return lensing_query.get_pixel_screen();
   }
 

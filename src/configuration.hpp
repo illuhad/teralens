@@ -19,8 +19,8 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef CONFIGURATION_HPP
-#define CONFIGURATION_HPP
+#ifndef TERALENS_CONFIGURATION_HPP
+#define TERALENS_CONFIGURATION_HPP
 
 #include <QCL/qcl.hpp>
 #include <QCL/qcl_module.hpp>
@@ -43,6 +43,8 @@ using vector2 =  spatialcl::cl_vector_type<scalar, 2>::value;
 using particle_type =
   spatialcl::configuration<type_system>::particle_type;
 
+using vector_type =
+  spatialcl::configuration<type_system>::vector_type;
 
 }
 

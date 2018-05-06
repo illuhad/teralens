@@ -31,7 +31,7 @@ find_package(Boost
 
 include_directories(${PROJECT_BINARY_DIR} ${PROJECT_SOURCE_DIR}  ${OpenCL_INCLUDE_DIRS} ${PROJECT_SOURCE_DIR}/include)
 add_executable(teralens src/teralens.cpp)
-target_link_libraries (teralens ${OpenCL_LIBRARIES})
+target_link_libraries (teralens ${OpenCL_LIBRARIES} -lcfitsio)
 
 
 

@@ -92,9 +92,9 @@ private:
 
     // First, build lowest level
     std::size_t lowest_level_num_nodes = (this->get_num_particles() + 1) >> 1;
-    cl_int err = this->build_ll_monopoles(_ctx,
-                                          cl::NDRange{lowest_level_num_nodes},
-                                          cl::NDRange{256})
+    cl_int err = this->build_ll_nodes(_ctx,
+                                      cl::NDRange{lowest_level_num_nodes},
+                                      cl::NDRange{256})
           (this->get_node_values0(),
            this->get_node_values1(),
            this->get_sorted_particles(),
