@@ -53,53 +53,52 @@ private:
       #define MULTIPOLE_ORDER 6
 
       // first half (lo) is stored in nodes0
-      #define CENTER_OF_MASS     (expansion) expansion.s01
-      #define CENTER_OF_MASS_X   (expansion) expansion.s0
-      #define CENTER_OF_MASS_Y   (expansion) expansion.s1
-      #define MASS               (expansion) expansion.s2
-      #define MONOPOLE_MOMENT    (expansion) expansion.s2
-      #define NODE_EXTENT_X      (expansion) expansion.s3
-      #define NODE_EXTENT_Y      (expansion) expansion.s4
-      #define NODE_EXTENT        (expansion) expansion.s34
-      #define NODE_WIDTH         (expansion) expansion.s5
+      #define      CENTER_OF_MASS(expansion) expansion.s01
+      #define    CENTER_OF_MASS_X(expansion) expansion.s0
+      #define    CENTER_OF_MASS_Y(expansion) expansion.s1
+      #define                MASS(expansion) expansion.s2
+      #define     MONOPOLE_MOMENT(expansion) expansion.s2
+      #define       NODE_EXTENT_X(expansion) expansion.s3
+      #define       NODE_EXTENT_Y(expansion) expansion.s4
+      #define         NODE_EXTENT(expansion) expansion.s34
+      #define          NODE_WIDTH(expansion) expansion.s5
       #define QUADRUPOLE_MOMENT_X(expansion) expansion.s6
       #define QUADRUPOLE_MOMENT_Y(expansion) expansion.s7
-      #define QUADRUPOLE_MOMENT  (expansion) expansion.s67
+      #define   QUADRUPOLE_MOMENT(expansion) expansion.s67
 
       // The second half of the expansion (hi) is stored in nodes1
-      #define OCTOPOLE_MOMENT_X  (expansion) expansion.s8
-      #define OCTOPOLE_MOMENT_Y  (expansion) expansion.s9
-      #define POLE16_MOMENT_X    (expansion) expansion.sa
-      #define POLE16_MOMENT_Y    (expansion) expansion.sb
-      #define POLE32_MOMENT_X    (expansion) expansion.sc
-      #define POLE32_MOMENT_Y    (expansion) expansion.sd
-      #define POLE64_MOMENT_X    (expansion) expansion.se
-      #define POLE64_MOMENT_Y    (expansion) expansion.sf
+      #define OCTOPOLE_MOMENT_X(expansion) expansion.s8
+      #define OCTOPOLE_MOMENT_Y(expansion) expansion.s9
+      #define   POLE16_MOMENT_X(expansion) expansion.sa
+      #define   POLE16_MOMENT_Y(expansion) expansion.sb
+      #define   POLE32_MOMENT_X(expansion) expansion.sc
+      #define   POLE32_MOMENT_Y(expansion) expansion.sd
+      #define   POLE64_MOMENT_X(expansion) expansion.se
+      #define   POLE64_MOMENT_Y(expansion) expansion.sf
 
 
-      #define EXPANSION_LO (expansion) expansion.s01234567
-      #define EXPANSION_HI (expansion) expansion.s89abcdef
+      #define EXPANSION_LO(expansion) expansion.s01234567
+      #define EXPANSION_HI(expansion) expansion.s89abcdef
 
-      #define PARTICLE_POSITION(particle) particle.xy
-      #define PARTICLE_MASS    (particle) particle.z
+      #define PARTICLE_MASS(particle) particle.z
 
 
 
 
       lensing_multipole_expansion multipole_expansion_for_particle(vector_type center_of_mass,
-                                                                   particle p)
+                                                                   particle_type p)
       {
         lensing_multipole_expansion result = (lensing_multipole_expansion)0.0f;
 
         // Quadrupole
       #if MULTIPOLE_ORDER >= 2
-        vector delta = PARTICLE_POSITION(p) - center_of_mass;
+        vector_type delta = PARTICLE_POSITION(p) - center_of_mass;
 
-        vector delta_pow2 = delta      * delta;
-        vector delta_pow3 = delta      * delta_pow2;
-        vector delta_pow4 = delta_pow2 * delta_pow2;
-        vector delta_pow5 = delta_pow2 * delta_pow3;
-        vector delta_pow6 = delta_pow3 * delta_pow3;
+        vector_type delta_pow2 = delta      * delta;
+        vector_type delta_pow3 = delta      * delta_pow2;
+        vector_type delta_pow4 = delta_pow2 * delta_pow2;
+        vector_type delta_pow5 = delta_pow2 * delta_pow3;
+        vector_type delta_pow6 = delta_pow3 * delta_pow3;
 
         QUADRUPOLE_MOMENT_X(result) = delta_pow2.x - delta_pow2.y;
         QUADRUPOLE_MOMENT_Y(result) = 2 * delta.x * delta.y;
@@ -165,8 +164,8 @@ private:
         m1c0 = evaluation_coefficients.x * QUADRUPOLE_MOMENT_Y(m);
         m0c1 = evaluation_coefficients.y * QUADRUPOLE_MOMENT_X(m);
 
-        result.x -= (m0c0 + m1c1) / r_power2i_plus2;
-        result.y -= (m0c1 - m1c0) / r_power2i_plus2;
+        result.x -= (m0c0 + m1c1) / r_pow2i_plus2;
+        result.y -= (m0c1 - m1c0) / r_pow2i_plus2;
       #endif
 
         // Octopole
@@ -181,8 +180,8 @@ private:
         m1c0 = evaluation_coefficients.x * OCTOPOLE_MOMENT_Y(m);
         m0c1 = evaluation_coefficients.y * OCTOPOLE_MOMENT_X(m);
 
-        result.x -= (m0c0 + m1c1) / r_power2i_plus2;
-        result.y -= (m0c1 - m1c0) / r_power2i_plus2;
+        result.x -= (m0c0 + m1c1) / r_pow2i_plus2;
+        result.y -= (m0c1 - m1c0) / r_pow2i_plus2;
       #endif
 
         // 16-pole
@@ -197,8 +196,8 @@ private:
         m1c0 = evaluation_coefficients.x * POLE16_MOMENT_Y(m);
         m0c1 = evaluation_coefficients.y * POLE16_MOMENT_X(m);
 
-        result.x -= (m0c0 + m1c1) / r_power2i_plus2;
-        result.y -= (m0c1 - m1c0) / r_power2i_plus2;
+        result.x -= (m0c0 + m1c1) / r_pow2i_plus2;
+        result.y -= (m0c1 - m1c0) / r_pow2i_plus2;
       #endif
 
         // 32-pole
@@ -215,8 +214,8 @@ private:
         m1c0 = evaluation_coefficients.x * POLE32_MOMENT_Y(m);
         m0c1 = evaluation_coefficients.y * POLE32_MOMENT_X(m);
 
-        result.x -= (m0c0 + m1c1) / r_power2i_plus2;
-        result.y -= (m0c1 - m1c0) / r_power2i_plus2;
+        result.x -= (m0c0 + m1c1) / r_pow2i_plus2;
+        result.y -= (m0c1 - m1c0) / r_pow2i_plus2;
       #endif
 
         // 64-pole
@@ -233,8 +232,8 @@ private:
         m1c0 = evaluation_coefficients.x * POLE64_MOMENT_Y(m);
         m0c1 = evaluation_coefficients.y * POLE64_MOMENT_X(m);
 
-        result.x -= (m0c0 + m1c1) / r_power2i_plus2;
-        result.y -= (m0c1 - m1c0) / r_power2i_plus2;
+        result.x -= (m0c0 + m1c1) / r_pow2i_plus2;
+        result.y -= (m0c1 - m1c0) / r_pow2i_plus2;
       #endif
 
         return result;

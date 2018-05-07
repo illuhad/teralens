@@ -207,8 +207,8 @@ private:
 
             particle_type left_particle  = particles[left_particle_idx];
             particle_type right_particle = left_particle;
-            if(right_particle < num_particles)
-              particles[right_particle_idx];
+            if(right_particle_idx < num_particles)
+              right_particle = particles[right_particle_idx];
 
             vector_type center_of_mass;
             center_of_mass = left_particle.z * left_particle.xy;
@@ -375,7 +375,7 @@ private:
           barrier(CLK_LOCAL_MEM_FENCE);
 
           const size_t subgroup_size = min(num_particles_per_node,
-                                           reduction_group_size);
+                                           (ulong)reduction_group_size);
           const size_t subgroup_id  = lid / subgroup_size;
           const size_t subgroup_lid = lid - subgroup_id * subgroup_size;
 
