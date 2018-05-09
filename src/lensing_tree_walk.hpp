@@ -189,7 +189,7 @@ private:
         const vector_type R = CENTER_OF_MASS(node0)-ray_position;
 
         *selection_result_ptr =
-           NODE_WIDTH(node0)*NODE_WIDTH(node0) > opening_angle_squared*dot(R,R);
+          NODE_WIDTH(node0)*NODE_WIDTH(node0) > opening_angle_squared*dot(R,R);
       }
     )
     QCL_PREPROCESSOR(define,
@@ -200,8 +200,7 @@ private:
         *selection_result_ptr = 0;
 
         const vector_type R = ray_position - current_particle.xy;
-        if(get_global_id(0) < 100)
-          printf("particle @ %f %f, m=%f, R^2=%f\n",current_particle.x,current_particle.y,current_particle.z,dot(R,R));
+
         deflection += current_particle.z * R * native_recip(dot(R,R));
       }
     )
@@ -214,8 +213,7 @@ private:
         lensing_multipole_expansion expansion;
         EXPANSION_LO(expansion) = node0;
         EXPANSION_HI(expansion) = node1;
-        if(get_global_id(0) < 100)
-          printf("N0 %f %f %f %f %f %f %f %f\n",node0.s0,node0.s1,node0.s2,node0.s3,node0.s4,node0.s5,node0.s6,node0.s7);
+
         // ToDo verify sign
         deflection -= multipole_expansion_evaluate(expansion, ray_position);
         //vector_type R = ray_position - CENTER_OF_MASS(expansion);
@@ -240,8 +238,8 @@ private:
     QCL_PREPROCESSOR(define,
       at_query_init()
         vector_type deflection = (vector_type)0.0f;
-        const uint ray_id_x = get_query_id() % num_rays_y;
-        const uint ray_id_y = get_query_id() / num_rays_y;
+        const uint ray_id_x = get_query_id() % num_rays_x;
+        const uint ray_id_y = get_query_id() / num_rays_x;
         // ToDo: Apply tiling optimization
         const vector_type ray_position = (vector_type)(
                       shooting_region_min_corner.x + ray_id_x * ray_separation.x,
@@ -256,17 +254,7 @@ private:
                                        1+shear-convergence)*ray_position - deflection;
           int2 pixel = convert_int2((source_plane_position - screen_min_corner)/pixel_size);
 
-          if(get_query_id() < 100)
-          {
-            printf("pos = %d %d, %f %f\n", pixel.x, pixel.y, source_plane_position.x, source_plane_position.y);
-            //printf("screen min corner = %f %f\n",screen_min_corner.x,screen_min_corner.y);
-            //printf("screen max corner = %f %f\n",screen_min_corner.x+num_screen_px_x*pixel_size,
-            //                                     screen_min_corner.y+num_screen_px_y*pixel_size);
-            printf("shooting region min corner = %f %f\n",shooting_region_min_corner.x,shooting_region_min_corner.y);
-            printf("shooting region max corner = %f %f\n",shooting_region_min_corner.x+num_rays_x*ray_separation.x,
-                                                          shooting_region_min_corner.y+num_rays_y*ray_separation.y);
 
-          }
           if(pixel.x >= 0 &&
              pixel.y >= 0 &&
              pixel.x < num_screen_px_x &&

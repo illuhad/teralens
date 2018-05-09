@@ -214,8 +214,8 @@ public:
       tree_opening_angle
     };
 
-    using query_engine_type = grouped_dfs_query_engine;
-    //using query_engine_type = dfs_query_engine;
+    //using query_engine_type = grouped_dfs_query_engine;
+    using query_engine_type = dfs_query_engine;
 
     query_engine_type lensing_query_engine;
     lensing_query_engine(this->_tree, lensing_query);

@@ -69,6 +69,7 @@ public:
     assert(particles.size() > 2);
 
     std::cout << "Number of particles: " << particles.size() << std::endl;
+
     this->init_multipoles();
   }
 
@@ -352,6 +353,39 @@ private:
                                                      __global vector_type* reduction_spill_buffer0,
                                                      __global  node_type1* reduction_spill_buffer1)
         {
+          /*
+          const ulong num_particles_per_node = BT_LEAVES_PER_NODE(current_level, effective_num_levels);
+          size_t tid = get_global_id(0);
+          const ulong effective_node_idx =
+                  BT_LEVEL_OFFSET(current_level, effective_num_levels) - effective_num_particles
+                  + tid;
+
+          if(tid < BT_NUM_NODES(current_level))
+          {
+            node_type0 node0 = (node_type0)0.0f;
+            node_type1 node1 = (node_type1)0.0f;
+
+            vector_type center_of_mass = CENTER_OF_MASS(nodes0[effective_node_idx]);
+
+            const ulong particles_begin = tid * num_particles_per_node;
+            for(int i = 0; i < num_particles_per_node; ++i)
+            {
+              particle_type p = (particle_type)0.0f;
+              if(particles_begin + i < num_particles)
+                p = particles[particles_begin + i];
+
+
+              lensing_multipole_expansion e =
+                   multipole_expansion_for_particle(center_of_mass, p);
+              QUADRUPOLE_MOMENT(node0) += QUADRUPOLE_MOMENT(e);
+              node1 += EXPANSION_HI(e);
+            }
+
+            QUADRUPOLE_MOMENT(nodes0[effective_node_idx]) = QUADRUPOLE_MOMENT(node0);
+            nodes1[effective_node_idx] = node1;
+            //QUADRUPOLE_MOMENT(nodes0[effective_node_idx]) = (vector_type)0.0f;
+            //nodes1[effective_node_idx] = (node_type1)0.0f;
+          }*/
 
           // We only need to store the quadrupole moments from nodes0, this
           // fits into a 2d vector instead of a full-blown node_type0 vector.

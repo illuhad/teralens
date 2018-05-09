@@ -54,7 +54,7 @@ int main(int argc, char** argv)
   teralens::lensing_system system{
     ctx,
     1.0f, // mean particle mass
-    0.3f, // convergence_stars
+    0.7f, // convergence_stars
     0.1f, // convergence_smooth
     0.1f, // shear
     20.0f, // source plane/magnification pattern size
