@@ -57,13 +57,14 @@ int main(int argc, char** argv)
     0.3f, // convergence_stars
     0.1f, // convergence_smooth
     0.1f, // shear
-    2.0f  // source plane/magnification pattern size
+    20.0f, // source plane/magnification pattern size
+    600001 // seed
   };
 
   std::size_t resolution = 1024;
 
   teralens::magnification_pattern_generator generator{ctx, system};
-  qcl::device_array<int> pixel_screen = generator.run(resolution, 100);
+  qcl::device_array<int> pixel_screen = generator.run(resolution, 10);
 
   // Copy results back to the CPU
   teralens::util::multi_array<int> image{resolution, resolution};

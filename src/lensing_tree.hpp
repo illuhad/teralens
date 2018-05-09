@@ -67,10 +67,16 @@ public:
   {
     // Need at least two particles for the tree
     assert(particles.size() > 2);
+
+    std::cout << "Number of particles: " << particles.size() << std::endl;
     this->init_multipoles();
   }
 
 private:
+
+  // Must be a power of 2
+  static constexpr std::size_t reduction_group_size = 256;
+
   void init_multipoles()
   {
     assert(this->get_num_node_levels() > 0);
@@ -122,7 +128,9 @@ private:
 
   void init_higher_multipoles()
   {
-    const std::size_t num_summation_groups = this->get_num_particles() / reduction_group_size;
+    const std::size_t num_summation_groups =
+            (this->get_num_particles()+reduction_group_size-1) / reduction_group_size;
+
     qcl::device_array<vector2> reduction_spill_buffer0{_ctx, num_summation_groups};
     qcl::device_array<vector8> reduction_spill_buffer1{_ctx, num_summation_groups};
 
@@ -150,12 +158,17 @@ private:
         std::size_t num_summation_elements = (this->get_num_particles() + summation_group_size - 1)
                                            / summation_group_size;
 
+        std::size_t effective_summation_size = summation_group_size;
+        if(summation_group_size > reduction_group_size)
+            effective_summation_size = reduction_group_size;
+
         err = this->sum_reduction_spill_buffer(_ctx,
                                                num_summation_elements,
                                                reduction_group_size)(
                  reduction_spill_buffer0,
                  reduction_spill_buffer1,
-                 static_cast<cl_uint>(summation_group_size),
+                 static_cast<cl_uint>(effective_summation_size),
+                 static_cast<cl_int> (summation_group_size <= reduction_group_size),
                  static_cast<cl_uint>(level),
                  static_cast<cl_uint>(this->get_effective_num_levels()),
                  static_cast<cl_ulong>(this->get_effective_num_particles()),
@@ -173,8 +186,6 @@ private:
   }
 
 
-  // Must be a power of 2
-  static constexpr std::size_t reduction_group_size = 256;
 
   QCL_ENTRYPOINT(build_ll_nodes)
   QCL_ENTRYPOINT(build_nodes)
@@ -211,16 +222,15 @@ private:
               right_particle = particles[right_particle_idx];
 
             vector_type center_of_mass;
-            center_of_mass = left_particle.z * left_particle.xy;
+            center_of_mass  = left_particle.z  * left_particle.xy;
             center_of_mass += right_particle.z * right_particle.xy;
 
             scalar total_mass = left_particle.z + right_particle.z;
 
             center_of_mass /= total_mass;
 
-            vector_type node_extent;
-            node_extent = fabs(left_particle.xy - right_particle.xy);
-            scalar node_width = 0.5f * (node_extent.x + node_extent.y);
+            vector_type node_extent = fabs(left_particle.xy - right_particle.xy);
+            scalar      node_width  = fmax(node_extent.x, node_extent.y);
 
             lensing_multipole_expansion expansion = multipole_expansion_for_particle(center_of_mass,
                                                                                      left_particle)
@@ -288,7 +298,6 @@ private:
 
               scalar total_mass = left_mass + right_mass;
               parent_com /= total_mass;
-              // Set total mass
 
               node_type0 parent_node = (node_type0)0.0f;
               CENTER_OF_MASS(parent_node) = parent_com;
@@ -306,6 +315,9 @@ private:
                                        - effective_num_particles;
               // Set result
               nodes0[effective_node_idx] = parent_node;
+
+              if(get_global_id(0) < 10)
+                printf("lvl %d %f %f %f %f %f %f %f %f\n",(int)current_level,parent_node.s0,parent_node.s1,parent_node.s2,parent_node.s3,parent_node.s4,parent_node.s5,parent_node.s6,parent_node.s7);
             }
           }
         }
@@ -408,6 +420,7 @@ private:
 
                                                  // Should not be larger than the group size
                                                  const uint  summation_group_size,
+                                                 const int   is_final_summation,
                                                  const uint  level,
                                                  const uint  effective_num_levels,
                                                  const ulong effective_num_particles,
@@ -442,7 +455,7 @@ private:
                          subgroup_lid,
                          summation_group_size);
 
-          if(summation_group_size <= reduction_group_size)
+          if(is_final_summation)
           {
             // We are done with the summation, write the results to the nodes
             if (subgroup_lid == 0 && (tid < num_summation_elements))

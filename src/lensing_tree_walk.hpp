@@ -77,6 +77,13 @@ public:
     assert(_num_rays_y > 0);
     assert(_num_px_x > 0);
     assert(_num_px_y > 0);
+
+    init_pixel_screen(ctx,
+                      _num_px_x*_num_px_y,
+                      256)(
+                this->_pixel_screen,
+                static_cast<cl_ulong>(_num_px_x),
+                static_cast<cl_ulong>(_num_px_y));
   }
 
   virtual void push_full_arguments(qcl::kernel_call& call) override
@@ -156,11 +163,22 @@ private:
 
   static constexpr std::size_t tile_size = 8;
 
+  QCL_ENTRYPOINT(init_pixel_screen)
   QCL_MAKE_SOURCE
   (
     QCL_IMPORT_CONSTANT(tile_size)
     QCL_INCLUDE_MODULE(spatialcl::configuration<type_system>)
     QCL_INCLUDE_MODULE(lensing_moments)
+    QCL_RAW(
+      __kernel void init_pixel_screen(__global int* screen,
+                                      ulong num_px_x,
+                                      ulong num_px_y)
+      {
+        size_t tid = get_global_id(0);
+        if(tid < num_px_x * num_px_y)
+          screen[tid] = 0;
+      }
+    )
     QCL_PREPROCESSOR(define,
       dfs_node_selector(selection_result_ptr,
                         current_node_key_ptr,
@@ -182,7 +200,9 @@ private:
         *selection_result_ptr = 0;
 
         const vector_type R = ray_position - current_particle.xy;
-        deflection += particle.z * R * native_recip(dot(R,R));
+        if(get_global_id(0) < 100)
+          printf("particle @ %f %f, m=%f, R^2=%f\n",current_particle.x,current_particle.y,current_particle.z,dot(R,R));
+        deflection += current_particle.z * R * native_recip(dot(R,R));
       }
     )
     QCL_PREPROCESSOR(define,
@@ -194,8 +214,12 @@ private:
         lensing_multipole_expansion expansion;
         EXPANSION_LO(expansion) = node0;
         EXPANSION_HI(expansion) = node1;
+        if(get_global_id(0) < 100)
+          printf("N0 %f %f %f %f %f %f %f %f\n",node0.s0,node0.s1,node0.s2,node0.s3,node0.s4,node0.s5,node0.s6,node0.s7);
         // ToDo verify sign
         deflection -= multipole_expansion_evaluate(expansion, ray_position);
+        //vector_type R = ray_position - CENTER_OF_MASS(expansion);
+        //deflection += (MASS(expansion) * native_recip(dot(R,R))) * R;
       }
     )
     R"(
@@ -208,7 +232,7 @@ private:
         const scalar convergence,                \
         const scalar opening_angle_squared,      \
         __global int* ray_count_pixels,          \
-        cosnt uint num_screen_px_x,              \
+        const uint num_screen_px_x,              \
         const uint num_screen_px_y,              \
         const scalar pixel_size,                 \
         const vector_type screen_min_corner
@@ -230,8 +254,19 @@ private:
           vector_type source_plane_position =
                          (vector_type)(1-shear-convergence,
                                        1+shear-convergence)*ray_position - deflection;
-          int2 pixel = (int2)((source_plane_position - screen_min_corner)/pixel_size);
+          int2 pixel = convert_int2((source_plane_position - screen_min_corner)/pixel_size);
 
+          if(get_query_id() < 100)
+          {
+            printf("pos = %d %d, %f %f\n", pixel.x, pixel.y, source_plane_position.x, source_plane_position.y);
+            //printf("screen min corner = %f %f\n",screen_min_corner.x,screen_min_corner.y);
+            //printf("screen max corner = %f %f\n",screen_min_corner.x+num_screen_px_x*pixel_size,
+            //                                     screen_min_corner.y+num_screen_px_y*pixel_size);
+            printf("shooting region min corner = %f %f\n",shooting_region_min_corner.x,shooting_region_min_corner.y);
+            printf("shooting region max corner = %f %f\n",shooting_region_min_corner.x+num_rays_x*ray_separation.x,
+                                                          shooting_region_min_corner.y+num_rays_y*ray_separation.y);
+
+          }
           if(pixel.x >= 0 &&
              pixel.y >= 0 &&
              pixel.x < num_screen_px_x &&

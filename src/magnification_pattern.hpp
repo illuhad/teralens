@@ -46,9 +46,9 @@ public:
                  scalar convergence_smooth,
                  scalar shear,
                  scalar source_plane_size,
-                 scalar overshooting_region_size = 3.0f,
-                 scalar lens_and_ray_region_size_ratio = 1.5f,
-                 std::size_t random_seed = 12345)
+                 std::size_t random_seed = 12345,
+                 scalar overshooting_region_size = 6.0f,
+                 scalar lens_and_ray_region_size_ratio = 1.5f)
     : _convergence_c{convergence_stars},
       _convergence_s{convergence_smooth},
       _shear{shear},
@@ -125,7 +125,7 @@ private:
 
     std::size_t num_particles =
         static_cast<std::size_t>(
-          std::round(_convergence_c * M_PI * lens_radius * lens_radius / mean_particle_mass));
+          std::round(_convergence_c * lens_radius * lens_radius / mean_particle_mass));
 
     std::vector<particle_type> particles(num_particles);
 
@@ -144,15 +144,31 @@ private:
         p.s[0] = random_distribution(random_engine);
         p.s[1] = random_distribution(random_engine);
       } while(p.s[0]*p.s[0] + p.s[1]*p.s[1] > lens_radius2);
+
+      particles[i] = p;
     }
 
     return qcl::device_array<particle_type>{ctx, particles};
   }
 };
 
+using grouped_dfs_query_engine = spatialcl::query::engine::grouped_depth_first
+<
+  lensing_tree,
+  ray_grid_query
+>;
+
+using dfs_query_engine = spatialcl::query::engine::depth_first
+<
+  lensing_tree,
+  ray_grid_query,
+  spatialcl::query::engine::HIERARCHICAL_ITERATION_RELAXED
+>;
+
 class magnification_pattern_generator
 {
 public:
+
   magnification_pattern_generator(const qcl::device_context_ptr& ctx,
                                   const lensing_system& system)
     : _ctx{ctx},
@@ -198,12 +214,8 @@ public:
       tree_opening_angle
     };
 
-    using query_engine_type =
-      spatialcl::query::engine::grouped_depth_first
-      <
-        lensing_tree,
-        ray_grid_query
-      >;
+    using query_engine_type = grouped_dfs_query_engine;
+    //using query_engine_type = dfs_query_engine;
 
     query_engine_type lensing_query_engine;
     lensing_query_engine(this->_tree, lensing_query);
