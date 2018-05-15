@@ -46,19 +46,18 @@ public:
                     const qcl::device_array<vector_type>& ray_coordinates,
                     std::size_t num_rays,
                     std::size_t max_exact_particles,
-                    std::size_t max_nodes,
+                    scalar ray_separation,
                     scalar tree_opening_angle)
       : _ctx{ctx},
         _ray_coords{ray_coordinates},
         _num_rays{num_rays},
         _max_exact_particles{max_exact_particles},
-        _max_nodes{max_nodes},
         _exact_particles    {ctx, num_rays * max_exact_particles},
-        _approximated_nodes0{ctx, num_rays * max_nodes},
-        _approximated_nodes1{ctx, num_rays * max_nodes},
         _num_selected_particles{ctx, num_rays},
-        _num_selected_nodes    {ctx, num_rays},
-        _opening_angle {tree_opening_angle}
+        _opening_angle {tree_opening_angle},
+        _coeffs_x{ctx, num_rays * 4},
+        _coeffs_y{ctx, num_rays * 4},
+        _ray_separation{ray_separation}
   {}
 
   virtual void push_full_arguments(qcl::kernel_call& call) override
@@ -66,12 +65,11 @@ public:
     call.partial_argument_list(_ray_coords,
                                static_cast<cl_ulong>(_num_rays),
                                _exact_particles,
-                               _approximated_nodes0,
-                               _approximated_nodes1,
                                _num_selected_particles,
-                               _num_selected_nodes,
+                               _coeffs_x,
+                               _coeffs_y,
                                static_cast<cl_uint>(_max_exact_particles),
-                               static_cast<cl_uint>(_max_nodes),
+                               _ray_separation,
                                _opening_angle * _opening_angle);
   }
 
@@ -87,14 +85,16 @@ public:
     return _exact_particles;
   }
 
-  const qcl::device_array<vector8>& get_selected_nodes0() const
+  const qcl::device_array<bicubic_interpolation_coefficients>&
+  get_interpolation_coeffs_x() const
   {
-    return _approximated_nodes0;
+    return _coeffs_x;
   }
 
-  const qcl::device_array<vector8>& get_selected_nodes1() const
+  const qcl::device_array<bicubic_interpolation_coefficients>&
+  get_interpolation_coeffs_y() const
   {
-    return _approximated_nodes1;
+    return _coeffs_y;
   }
 
   const qcl::device_array<cl_uint>& get_num_selected_particles() const
@@ -102,45 +102,43 @@ public:
     return _num_selected_particles;
   }
 
-  const qcl::device_array<cl_uint>& get_num_selected_nodes() const
-  {
-    return _num_selected_nodes;
-  }
 
 private:
   qcl::device_context_ptr _ctx;
   qcl::device_array<vector_type> _ray_coords;
   const std::size_t _num_rays;
   const std::size_t _max_exact_particles;
-  const std::size_t _max_nodes;
 
   qcl::device_array<particle_type> _exact_particles;
-  qcl::device_array<vector8> _approximated_nodes0;
-  qcl::device_array<vector8> _approximated_nodes1;
   qcl::device_array<cl_uint> _num_selected_particles;
-  qcl::device_array<cl_uint> _num_selected_nodes;
 
   scalar _opening_angle;
+
+  qcl::device_array<bicubic_interpolation_coefficients> _coeffs_x;
+  qcl::device_array<bicubic_interpolation_coefficients> _coeffs_y;
+
+  scalar _ray_separation;
 
   QCL_MAKE_SOURCE(
     QCL_INCLUDE_MODULE(spatialcl::configuration<type_system>)
     QCL_INCLUDE_MODULE(lensing_moments)
     QCL_INCLUDE_MODULE(interpolation)
+    QCL_IMPORT_TYPE(vector2)
     QCL_IMPORT_TYPE(vector8)
     R"(
-      #define NUM_INTERPOLATION_POINTS
+      #define NUM_INTERPOLATION_POINTS 5
+      #define HALF_NUM_INTERPOLATION_POINTS 2
 
       #define declare_full_query_parameter_set()            \
         __global vector_type* restrict ray_positions,       \
         const ulong num_rays,                               \
         __global particle_type* restrict selected_particles,\
-        __global vector8* restrict selected_nodes0,         \
-        __global vector8* restrict selected_nodes1,         \
         __global uint* restrict selected_particles_counter, \
-        __global uint* restrict selected_nodes_counter,     \
+        __global bicubic_interpolation_coefficients* restrict coeffs_x,\
+        __global bicubic_interpolation_coefficients* restrict coeffs_y,\
         const uint max_selected_particles,                  \
-        const uint max_selected_nodes,                      \
-        scalar opening_angle_squared
+        const scalar ray_separation,                        \
+        const scalar opening_angle_squared
     )"
     QCL_PREPROCESSOR(define,
       get_num_queries()
@@ -154,9 +152,15 @@ private:
           ray_position = ray_positions[get_query_id()];
 
         uint num_selected_particles = 0;
-        uint num_selected_nodes     = 0;
 
-        //vector_type long_range_deflections [NUM_INTERPOLATION_POINTS][NUM_INTERPOLATION_POINTS];
+        scalar long_range_deflections_x [NUM_INTERPOLATION_POINTS][NUM_INTERPOLATION_POINTS];
+        scalar long_range_deflections_y [NUM_INTERPOLATION_POINTS][NUM_INTERPOLATION_POINTS];
+        for(int i = 0; i < NUM_INTERPOLATION_POINTS; ++i)
+          for(int j = 0; j < NUM_INTERPOLATION_POINTS; ++j)
+          {
+            long_range_deflections_x[i][j] = 0.0f;
+            long_range_deflections_y[i][j] = 0.0f;
+          }
     )
     QCL_PREPROCESSOR(define,
       dfs_node_selector(selection_result_ptr,
@@ -193,23 +197,54 @@ private:
                                     node0,
                                     node1)
       {
-        // Save nodes
-        // ToDo: Make sure tid is valid? This would enable the use of
-        // the grouped_dfs_engine
-        ulong i = get_query_id() * max_selected_nodes + num_selected_nodes;
+        // Evaluate at interpolation points
+        lensing_multipole_expansion expansion;
+        EXPANSION_LO(expansion) = node0;
+        EXPANSION_HI(expansion) = node1;
+        for(int i = 0; i < NUM_INTERPOLATION_POINTS; ++i)
+        {
+          for(int j = 0; j < NUM_INTERPOLATION_POINTS; ++j)
+          {
+            vector2 evaluated_position = ray_position;
+            evaluated_position.x += (i-HALF_NUM_INTERPOLATION_POINTS)*0.5f*ray_separation;
+            evaluated_position.y += (j-HALF_NUM_INTERPOLATION_POINTS)*0.5f*ray_separation;
 
-        selected_nodes0[i] = node0;
-        selected_nodes1[i] = node1;
-
-        num_selected_nodes = min(num_selected_nodes + 1,
-                                 max_selected_nodes - 1);
+            // Store deflection in evaluated position to save registers
+            evaluated_position = multipole_expansion_evaluate(expansion,
+                                                              evaluated_position);
+            long_range_deflections_x[i][j] -= evaluated_position.x;
+            long_range_deflections_y[i][j] -= evaluated_position.y;
+          }
+        }
       }
     )
     QCL_PREPROCESSOR(define,
       at_query_exit()
       {
         selected_particles_counter[get_query_id()] = num_selected_particles;
-        selected_nodes_counter    [get_query_id()] = num_selected_nodes;
+
+        // Calculate interpolation coefficients
+        scalar deflections [4][4];
+        for(int offset_y = 0; offset_y < 2; ++offset_y)
+        {
+          for(int offset_x = 0; offset_x < 2; ++offset_x)
+          {
+            bicubic_interpolation_coefficients coeffs;
+            for(int i = 0; i < 4; ++i)
+              for(int j = 0; j < 4; ++j)
+                deflections[i][j] = long_range_deflections_x[offset_x + i][offset_y + j];
+
+            coeffs = bicubic_interpolation_init(*(vector16*)deflections);
+            coeffs_x[4*get_query_id() + 2*offset_y + offset_x] = coeffs;
+
+            for(int i = 0; i < 4; ++i)
+              for(int j = 0; j < 4; ++j)
+                deflections[i][j] = long_range_deflections_y[offset_x + i][offset_y + j];
+
+            coeffs = bicubic_interpolation_init(*(vector16*)deflections);
+            coeffs_y[4*get_query_id() + 2*offset_y + offset_x] = coeffs;
+          }
+        }
       }
     )
   )
@@ -314,10 +349,8 @@ private:
   )
 };
 
-// Max_particles_per_ray and Max_nodes_per_ray
-// must be a power of 2.
-template<std::size_t Max_particles_per_ray,
-         std::size_t Max_nodes_per_ray>
+// Max_particles_per_ray must be a power of 2.
+template<std::size_t Max_particles_per_ray>
 class  secondary_ray_tracer
 {
 public:
@@ -334,60 +367,19 @@ public:
                   const scalar primary_ray_separation,
                   const qcl::device_array<cl_uint>& num_selected_particles,
                   const qcl::device_array<particle_type>& selected_particles,
-                  const qcl::device_array<cl_uint>& num_selected_nodes,
-                  const qcl::device_array<vector8>& selected_nodes0,
-                  const qcl::device_array<vector8>& selected_nodes1,
+                  const qcl::device_array<bicubic_interpolation_coefficients>& coeffs_x,
+                  const qcl::device_array<bicubic_interpolation_coefficients>& coeffs_y,
                   const scalar convergence_smooth,
                   const scalar shear)
   {
     assert(num_selected_particles.size() >= num_primary_rays);
     assert(selected_particles.size() >= num_primary_rays * Max_particles_per_ray);
-    assert(selected_nodes0.size() >= num_primary_rays * Max_nodes_per_ray);
-    assert(selected_nodes1.size() >= num_primary_rays * Max_nodes_per_ray);
-    assert(num_selected_nodes.size() >= num_primary_rays);
 
-    qcl::device_array<vector2> interpolation_deflections{
-      _ctx,
-      num_primary_rays * num_multipole_evaluations
-    };
-
-    cl_int err = this->compute_interpolation_deflections(
-          _ctx,
-          cl::NDRange{num_primary_rays * multipole_evaluations_group_size},
-          cl::NDRange{multipole_evaluations_group_size})(
-            selected_nodes0,
-            selected_nodes1,
-            num_selected_nodes,
-            primary_ray_positions,
-            static_cast<cl_ulong>(num_primary_rays),
-            primary_ray_separation,
-            interpolation_deflections);
-
-    qcl::check_cl_error(err, "Could not enqueue compute_interpolation_deflections kernel.");
-
-    qcl::device_array<bicubic_interpolation_coefficients> coeffs_x{
-      _ctx,
-      cells_per_ray * num_primary_rays
-    };
-
-    qcl::device_array<bicubic_interpolation_coefficients> coeffs_y{
-      _ctx,
-      cells_per_ray * num_primary_rays
-    };
-
-    err = this->compute_interpolation_coefficients(_ctx,
-                                                   cl::NDRange{cells_per_ray * num_primary_rays},
-                                                   cl::NDRange{128})(
-          interpolation_deflections,
-          static_cast<cl_ulong>(num_primary_rays),
-          coeffs_x,
-          coeffs_y);
-    qcl::check_cl_error(err, "Could not enqueue compute_interpolation_coefficients kernel.");
 
     std::size_t total_num_rays_per_cell = secondary_rays_per_cell*secondary_rays_per_cell;
-    err = this->evaluate_lens_equation(_ctx,
-                                       cl::NDRange{total_num_rays_per_cell * cells_per_ray * num_primary_rays},
-                                       cl::NDRange{std::max(Max_particles_per_ray,total_num_rays_per_cell)})(
+    cl_int err = this->evaluate_lens_equation(_ctx,
+                                              cl::NDRange{total_num_rays_per_cell * cells_per_ray * num_primary_rays},
+                                              cl::NDRange{std::max(Max_particles_per_ray,total_num_rays_per_cell)})(
           primary_ray_positions,
           selected_particles,
           num_selected_particles,
@@ -435,7 +427,6 @@ private:
   QCL_ENTRYPOINT(evaluate_lens_equation)
   QCL_MAKE_SOURCE(
     QCL_IMPORT_CONSTANT(Max_particles_per_ray)
-    QCL_IMPORT_CONSTANT(Max_nodes_per_ray)
     QCL_INCLUDE_MODULE(spatialcl::configuration<type_system>)
     QCL_INCLUDE_MODULE(interpolation)
     QCL_INCLUDE_MODULE(pixel_screen)
@@ -472,7 +463,7 @@ private:
       };
     )"
     QCL_RAW(
-
+/*
       __kernel void compute_interpolation_deflections(__global vector8* selected_nodes0,
                                                       __global vector8* selected_nodes1,
                                                       __global uint* num_selected_nodes,
@@ -581,7 +572,7 @@ private:
           coefficients_x[tid] = coeffs_x;
           coefficients_y[tid] = coeffs_y;
         }
-      }
+      } */
 
       // id should be <= 3. Translates id into
       // 2d indices ranging from -1 to 0 in each component

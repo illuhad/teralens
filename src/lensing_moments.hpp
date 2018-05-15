@@ -133,7 +133,8 @@ private:
       }
 
 
-      vector_type multipole_expansion_evaluate(lensing_multipole_expansion m, vector_type position)
+      vector_type multipole_expansion_evaluate(const lensing_multipole_expansion m,
+                                               const vector_type position)
       {
         vector_type result = (vector_type)(0,0);
         const vector_type R = position - CENTER_OF_MASS(m);

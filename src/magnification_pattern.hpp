@@ -231,7 +231,7 @@ public:
         scheduler.get_current_batch(),
         num_rays_in_batch,
         max_selected_particles,
-        max_selected_nodes,
+        ray_distance,
         tree_opening_angle
       };
       // Run tree query
@@ -241,8 +241,7 @@ public:
       // Create secondary ray tracer, which will create interpolation cells
       // for the long-range deflections and evaluate the close-range
       // deflections from close stars at many locations for each primary ray
-      secondary_ray_tracer<max_selected_particles, max_selected_nodes>
-          ray_evaluator {
+      secondary_ray_tracer<max_selected_particles> ray_evaluator {
         _ctx,
         &screen
       };
@@ -254,9 +253,8 @@ public:
                     ray_distance,
                     ray_query.get_num_selected_particles(),
                     ray_query.get_selected_particles(),
-                    ray_query.get_num_selected_nodes(),
-                    ray_query.get_selected_nodes0(),
-                    ray_query.get_selected_nodes1(),
+                    ray_query.get_interpolation_coeffs_x(),
+                    ray_query.get_interpolation_coeffs_y(),
                     _system.get_smooth_convergence(),
                     _system.get_shear());
 
