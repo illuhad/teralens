@@ -316,9 +316,6 @@ private:
                                        - effective_num_particles;
               // Set result
               nodes0[effective_node_idx] = parent_node;
-
-              if(get_global_id(0) < 10)
-                printf("lvl %d %f %f %f %f %f %f %f %f\n",(int)current_level,parent_node.s0,parent_node.s1,parent_node.s2,parent_node.s3,parent_node.s4,parent_node.s5,parent_node.s6,parent_node.s7);
             }
           }
         }

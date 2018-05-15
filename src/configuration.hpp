@@ -35,9 +35,9 @@ using scalar = float;
 // particle
 using type_system = spatialcl::type_descriptor::generic<scalar, 2, 3>;
 
-
-using vector8 =  spatialcl::cl_vector_type<scalar, 8>::value;
-using vector2 =  spatialcl::cl_vector_type<scalar, 2>::value;
+using vector16 = spatialcl::cl_vector_type<scalar,16>::value;
+using vector8  = spatialcl::cl_vector_type<scalar, 8>::value;
+using vector2  = spatialcl::cl_vector_type<scalar, 2>::value;
 
 
 using particle_type =
@@ -45,6 +45,15 @@ using particle_type =
 
 using vector_type =
   spatialcl::configuration<type_system>::vector_type;
+
+
+static constexpr std::size_t secondary_rays_per_cell = 16;
+
+static constexpr std::size_t max_batch_size = 32*1024;
+
+static constexpr std::size_t max_selected_nodes = 256;
+static constexpr std::size_t max_selected_particles = 128;
+
 
 }
 

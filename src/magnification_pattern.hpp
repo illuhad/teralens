@@ -155,13 +155,13 @@ private:
 using grouped_dfs_query_engine = spatialcl::query::engine::grouped_depth_first
 <
   lensing_tree,
-  ray_grid_query
+  primary_ray_query
 >;
 
 using dfs_query_engine = spatialcl::query::engine::depth_first
 <
   lensing_tree,
-  ray_grid_query,
+  primary_ray_query,
   spatialcl::query::engine::HIERARCHICAL_ITERATION_RELAXED
 >;
 
@@ -177,53 +177,99 @@ public:
   {}
 
   qcl::device_array<int> run(std::size_t resolution,
-                             std::size_t num_rays_ppx,
+                             scalar num_primary_rays_ppx,
                              scalar tree_opening_angle = 0.4)
   {
-
-    scalar ray_distance = _system.get_source_plane_size() /
-        (std::sqrt(static_cast<scalar>(num_rays_ppx)) * resolution);
-
-    vector2 primary_ray_separation;
-    primary_ray_separation.s[0] = ray_distance;
-    primary_ray_separation.s[1] = ray_distance;
-
-    ray_grid_query lensing_query{
-      _ctx,
-      // shooting region center
-      {{0.0f, 0.0f}},
-      // ray grid extent
-      _system.get_shooting_region_extent(),
-      // distance between rays
-      primary_ray_separation,
-      // Center of the pixel screen in the source plane
-      {{0.0f, 0.0f}},
-      // Physical size of the magnification pattern
-      _system.get_source_plane_size()/resolution,
-      // Number of pixels in x-direction
-      resolution,
-      // Numver of pixels in y-direction
-      resolution,
-      // global shear
-      _system.get_shear(),
-      // Convergence due to smooth matter
-      _system.get_smooth_convergence(),
-      // opening angle of the tree walk -
-      // use smaller values for a more exact
-      // (but slower) computation
-      tree_opening_angle
-    };
-
-    //using query_engine_type = grouped_dfs_query_engine;
     using query_engine_type = dfs_query_engine;
 
-    query_engine_type lensing_query_engine;
-    lensing_query_engine(this->_tree, lensing_query);
+    // Calculate lower-left corner of the shooting region
+    vector2 shooting_region_min_corner = _system.get_shooting_region_extent();
+    for(int i = 0; i < 2; ++i)
+      shooting_region_min_corner.s[i] *= -0.5f;
 
-    qcl::check_cl_error(_ctx->get_command_queue().finish(),
-                        "Error while waiting for the lensing query "
-                        "to finish.");
-    return lensing_query.get_pixel_screen();
+    // Calculate distance between primary rays
+    scalar px_size_x = _system.get_shooting_region_extent().s[0] / resolution;
+    scalar px_size_y = _system.get_shooting_region_extent().s[1] / resolution;
+    scalar ray_distance = std::sqrt(px_size_x * px_size_y / num_primary_rays_ppx);
+
+
+    // Create a ray_scheduler object, which will be used to calculate
+    // the coordinates of the primary rays
+    ray_scheduler scheduler{
+      _ctx,
+      shooting_region_min_corner,
+      ray_distance,
+      static_cast<std::size_t>(_system.get_shooting_region_extent().s[0] / ray_distance),
+      static_cast<std::size_t>(_system.get_shooting_region_extent().s[1] / ray_distance),
+      max_batch_size
+    };
+
+    // Create pixel screen object, which will count the rays in each pixel
+    pixel_screen screen{
+      _ctx,
+      resolution,
+      resolution,
+      {{0.0f, 0.0f}},
+      {{_system.get_source_plane_size(), _system.get_source_plane_size()}}
+    };
+
+
+    query_engine_type lensing_query_engine;
+    for(int i = 0; !scheduler.all_rays_processed(); ++i)
+    {
+      std::cout << "--> Tracing rays of batch " << i << std::endl;
+
+      // Generate a batch of primary ray positions on the GPU
+      std::size_t num_rays_in_batch = scheduler.generate_ray_batch();
+      std::cout << "  Scheduled " << num_rays_in_batch << " primary rays." << std::endl;
+
+      // Formulate tree query to determine which stars must be included
+      // exactly in the calculation, and which nodes' multipole expansion
+      // must be included.
+      primary_ray_query ray_query{
+        _ctx,
+        scheduler.get_current_batch(),
+        num_rays_in_batch,
+        max_selected_particles,
+        max_selected_nodes,
+        tree_opening_angle
+      };
+      // Run tree query
+      std::cout << "  Running tree queries for primary rays..." << std::endl;
+      lensing_query_engine(this->_tree, ray_query);
+
+      // Create secondary ray tracer, which will create interpolation cells
+      // for the long-range deflections and evaluate the close-range
+      // deflections from close stars at many locations for each primary ray
+      secondary_ray_tracer<max_selected_particles, max_selected_nodes>
+          ray_evaluator {
+        _ctx,
+        &screen
+      };
+
+      // Run secondary ray tracer
+      std::cout << "  Tracing secondary rays..." << std::endl;
+      ray_evaluator(scheduler.get_current_batch(),
+                    num_rays_in_batch,
+                    ray_distance,
+                    ray_query.get_num_selected_particles(),
+                    ray_query.get_selected_particles(),
+                    ray_query.get_num_selected_nodes(),
+                    ray_query.get_selected_nodes0(),
+                    ray_query.get_selected_nodes1(),
+                    _system.get_smooth_convergence(),
+                    _system.get_shear());
+
+      qcl::check_cl_error(_ctx->get_command_queue().finish(),
+                          "Error while waiting for the lensing query "
+                          "to finish.");
+
+      std::cout << "  okay." << std::endl;
+
+    }
+
+
+    return screen.get_screen();
   }
 
 private:
