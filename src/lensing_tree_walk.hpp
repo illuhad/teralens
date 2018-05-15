@@ -125,8 +125,11 @@ private:
   QCL_MAKE_SOURCE(
     QCL_INCLUDE_MODULE(spatialcl::configuration<type_system>)
     QCL_INCLUDE_MODULE(lensing_moments)
+    QCL_INCLUDE_MODULE(interpolation)
     QCL_IMPORT_TYPE(vector8)
     R"(
+      #define NUM_INTERPOLATION_POINTS
+
       #define declare_full_query_parameter_set()            \
         __global vector_type* restrict ray_positions,       \
         const ulong num_rays,                               \
@@ -152,6 +155,8 @@ private:
 
         uint num_selected_particles = 0;
         uint num_selected_nodes     = 0;
+
+        //vector_type long_range_deflections [NUM_INTERPOLATION_POINTS][NUM_INTERPOLATION_POINTS];
     )
     QCL_PREPROCESSOR(define,
       dfs_node_selector(selection_result_ptr,
@@ -203,8 +208,6 @@ private:
     QCL_PREPROCESSOR(define,
       at_query_exit()
       {
-                       if(get_global_id(0)==0)
-                       printf("%d %d\n",num_selected_particles,num_selected_nodes);
         selected_particles_counter[get_query_id()] = num_selected_particles;
         selected_nodes_counter    [get_query_id()] = num_selected_nodes;
       }

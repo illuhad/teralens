@@ -136,21 +136,21 @@ private:
       vector_type multipole_expansion_evaluate(lensing_multipole_expansion m, vector_type position)
       {
         vector_type result = (vector_type)(0,0);
-        vector_type R = position - CENTER_OF_MASS(m);
+        const vector_type R = position - CENTER_OF_MASS(m);
 
-        scalar r2 = dot(R, R);
+        const scalar r2 = dot(R, R);
 
         // monopole
         result = -MASS(m) * R / r2;
 
         // Quadrupole (Dipole vanishes always)
       #if MULTIPOLE_ORDER >= 2
-        vector_type R_pow2 = R      * R;
-        vector_type R_pow3 = R      * R_pow2;
-        vector_type R_pow4 = R_pow2 * R_pow2;
-        vector_type R_pow5 = R_pow2 * R_pow3;
-        vector_type R_pow6 = R_pow3 * R_pow3;
-        vector_type R_pow7 = R_pow3 * R_pow4;
+        const vector_type R_pow2 = R      * R;
+        const vector_type R_pow3 = R      * R_pow2;
+        const vector_type R_pow4 = R_pow2 * R_pow2;
+        const vector_type R_pow5 = R_pow2 * R_pow3;
+        const vector_type R_pow6 = R_pow3 * R_pow3;
+        const vector_type R_pow7 = R_pow3 * R_pow4;
 
         scalar r_pow2i_plus2 = r2 * r2 * r2;
         vector_type evaluation_coefficients;
@@ -164,8 +164,8 @@ private:
         m1c0 = evaluation_coefficients.x * QUADRUPOLE_MOMENT_Y(m);
         m0c1 = evaluation_coefficients.y * QUADRUPOLE_MOMENT_X(m);
 
-        result.x -= (m0c0 + m1c1) / r_pow2i_plus2;
-        result.y -= (m0c1 - m1c0) / r_pow2i_plus2;
+        result.x -= native_divide(m0c0 + m1c1, r_pow2i_plus2);
+        result.y -= native_divide(m0c1 - m1c0, r_pow2i_plus2);
       #endif
 
         // Octopole
@@ -180,8 +180,8 @@ private:
         m1c0 = evaluation_coefficients.x * OCTOPOLE_MOMENT_Y(m);
         m0c1 = evaluation_coefficients.y * OCTOPOLE_MOMENT_X(m);
 
-        result.x -= (m0c0 + m1c1) / r_pow2i_plus2;
-        result.y -= (m0c1 - m1c0) / r_pow2i_plus2;
+        result.x -= native_divide(m0c0 + m1c1, r_pow2i_plus2);
+        result.y -= native_divide(m0c1 - m1c0, r_pow2i_plus2);
       #endif
 
         // 16-pole
@@ -196,8 +196,8 @@ private:
         m1c0 = evaluation_coefficients.x * POLE16_MOMENT_Y(m);
         m0c1 = evaluation_coefficients.y * POLE16_MOMENT_X(m);
 
-        result.x -= (m0c0 + m1c1) / r_pow2i_plus2;
-        result.y -= (m0c1 - m1c0) / r_pow2i_plus2;
+        result.x -= native_divide(m0c0 + m1c1, r_pow2i_plus2);
+        result.y -= native_divide(m0c1 - m1c0, r_pow2i_plus2);
       #endif
 
         // 32-pole
@@ -214,8 +214,8 @@ private:
         m1c0 = evaluation_coefficients.x * POLE32_MOMENT_Y(m);
         m0c1 = evaluation_coefficients.y * POLE32_MOMENT_X(m);
 
-        result.x -= (m0c0 + m1c1) / r_pow2i_plus2;
-        result.y -= (m0c1 - m1c0) / r_pow2i_plus2;
+        result.x -= native_divide(m0c0 + m1c1, r_pow2i_plus2);
+        result.y -= native_divide(m0c1 - m1c0, r_pow2i_plus2);
       #endif
 
         // 64-pole
@@ -232,8 +232,8 @@ private:
         m1c0 = evaluation_coefficients.x * POLE64_MOMENT_Y(m);
         m0c1 = evaluation_coefficients.y * POLE64_MOMENT_X(m);
 
-        result.x -= (m0c0 + m1c1) / r_pow2i_plus2;
-        result.y -= (m0c1 - m1c0) / r_pow2i_plus2;
+        result.x -= native_divide(m0c0 + m1c1, r_pow2i_plus2);
+        result.y -= native_divide(m0c1 - m1c0, r_pow2i_plus2);
       #endif
 
         return result;

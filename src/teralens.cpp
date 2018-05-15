@@ -64,7 +64,7 @@ int main(int argc, char** argv)
   std::size_t resolution = 1024;
 
   teralens::magnification_pattern_generator generator{ctx, system};
-  qcl::device_array<int> pixel_screen = generator.run(resolution, 0.1f);
+  qcl::device_array<int> pixel_screen = generator.run(resolution, 1.f);
 
   // Copy results back to the CPU
   teralens::util::multi_array<int> image{resolution, resolution};

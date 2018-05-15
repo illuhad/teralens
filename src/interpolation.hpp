@@ -101,7 +101,7 @@ QCL_STANDALONE_SOURCE(
     scalar bicubic_unit_square_interpolation(const bicubic_interpolation_coefficients a,
                                              const vector_type relative_position)
     {
-      const vector_type pos1  = relative_position;
+      const vector_type pos1 = relative_position;
       const vector_type pos2 = pos1 * pos1;
       const vector_type pos3 = pos2 * pos1;
 
@@ -125,6 +125,7 @@ QCL_STANDALONE_SOURCE(
       temp_result += IP_M13(a) * pos3.y;
       result += pos2.x * temp_result;
 
+      // Terms for x^3
       temp_result  = IP_M30(a);
       temp_result += IP_M31(a) * pos1.y;
       temp_result += IP_M32(a) * pos2.y;

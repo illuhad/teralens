@@ -51,7 +51,7 @@ using vector_type =
 // for AMD)
 static constexpr std::size_t secondary_rays_per_cell = 16;
 
-static constexpr std::size_t max_batch_size = 32*1024;
+static constexpr std::size_t max_batch_size = 64*1024;
 
 static constexpr std::size_t max_selected_nodes = 256;
 static constexpr std::size_t max_selected_particles = 128;
