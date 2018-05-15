@@ -315,7 +315,7 @@ private:
 // must be a power of 2.
 template<std::size_t Max_particles_per_ray,
          std::size_t Max_nodes_per_ray>
-class secondary_ray_tracer
+class  secondary_ray_tracer
 {
 public:
   QCL_MAKE_MODULE(secondary_ray_tracer)
@@ -384,7 +384,7 @@ public:
     std::size_t total_num_rays_per_cell = secondary_rays_per_cell*secondary_rays_per_cell;
     err = this->evaluate_lens_equation(_ctx,
                                        cl::NDRange{total_num_rays_per_cell * cells_per_ray * num_primary_rays},
-                                       cl::NDRange{Max_nodes_per_ray})(
+                                       cl::NDRange{std::max(Max_particles_per_ray,total_num_rays_per_cell)})(
           primary_ray_positions,
           selected_particles,
           num_selected_particles,
@@ -623,63 +623,60 @@ private:
 
         __local particle_type particle_cache [Max_particles_per_ray];
 
-        if(primary_ray_id < num_primary_rays)
-        {
-          const vector2 interpolation_cell_min_corner =
-                primary_ray_positions[primary_ray_id]
-              + convert_float2(interpolation_cell_id2d(interpolation_cell_id)) * interpolation_cell_size;
+        const vector2 interpolation_cell_min_corner = primary_ray_positions[primary_ray_id]
+                   + interpolation_cell_size * convert_float2(interpolation_cell_id2d(interpolation_cell_id));
+        const uint num_particles = num_exact_particles[primary_ray_id];
 
-          vector2 deflection = (vector2)0.0f;
+        vector2 deflection = (vector2)0.0f;
 
-          const uchar2 rid = ray_id2d(tid & (secondary_rays_per_cell*secondary_rays_per_cell - 1));
-          const vector2 evaluation_position = interpolation_cell_min_corner
+        const uchar2 rid = ray_id2d(lid);
+        const vector2 evaluation_position = interpolation_cell_min_corner
             + secondary_ray_separation*(convert_float2(rid)+(vector2)0.5f);
 
-          // Collectively load exact particles into local memory
-          const uint num_particles = num_exact_particles[primary_ray_id];
 
-          if(lid < num_particles)
-            particle_cache[lid] = exact_particles[primary_ray_id * Max_particles_per_ray + lid];
+        // Collectively load exact particles into local memory
+        if(lid < num_particles)
+          particle_cache[lid] = exact_particles[primary_ray_id * Max_particles_per_ray + lid];
 
-          barrier(CLK_LOCAL_MEM_FENCE);
+        barrier(CLK_LOCAL_MEM_FENCE);
 
-          // First, calculate close-range deflections
-          for(int i = 0; i < num_particles; ++i)
-          {
-            particle_type p = particle_cache[lid];
-            vector2 R = evaluation_position - p.xy;
-            deflection += p.z * R * native_recip(dot(R,R));
-          }
+        // First, calculate close-range deflections
+        for(int i = 0; i < num_particles; ++i)
+        {
+          const particle_type p = particle_cache[i];
+          const vector2 R = evaluation_position - p.xy;
+          deflection += p.z * R * native_recip(dot(R,R));
+        }
 
-          // Calculate long-range, interpolated deflections
-          {
-            const bicubic_interpolation_coefficients coeffs_x =
+        // Calculate long-range, interpolated deflections
+        {
+          const bicubic_interpolation_coefficients coeffs_x =
               coefficients_x[cells_per_ray * primary_ray_id + interpolation_cell_id];
-            const bicubic_interpolation_coefficients coeffs_y =
+          const bicubic_interpolation_coefficients coeffs_y =
               coefficients_y[cells_per_ray * primary_ray_id + interpolation_cell_id];
 
-            const vector2 relative_position =
+          const vector2 relative_position =
               (evaluation_position - interpolation_cell_min_corner) / (vector2)interpolation_cell_size;
 
-            deflection.x += bicubic_unit_square_interpolation(coeffs_x, relative_position);
-            deflection.y += bicubic_unit_square_interpolation(coeffs_y, relative_position);
-          }
+          deflection.x += bicubic_unit_square_interpolation(coeffs_x, relative_position);
+          deflection.y += bicubic_unit_square_interpolation(coeffs_y, relative_position);
+        }
 
-          // Calculate impact position in the source plane
-          {
-            const vector2 shear_convergence_term =
+        // Calculate impact position in the source plane
+        if(lid < secondary_rays_per_cell*secondary_rays_per_cell)
+        {
+          const vector2 shear_convergence_term =
                      (vector2)(1.f - shear - convergence_smooth,
                                1.f + shear - convergence_smooth) * evaluation_position;
 
             // and count the impact in the pixel screen
 
-            count_ray_impact(shear_convergence_term - deflection,
-                             pixels,
-                             num_px_x, num_px_y,
-                             screen_center, screen_extent);
+          count_ray_impact(shear_convergence_term - deflection,
+                           pixels,
+                           num_px_x, num_px_y,
+                           screen_center, screen_extent);
 
 
-          }
         }
       }
 

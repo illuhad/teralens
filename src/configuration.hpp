@@ -46,7 +46,9 @@ using particle_type =
 using vector_type =
   spatialcl::configuration<type_system>::vector_type;
 
-
+// Must be a power of two, and secondary_rays_per_cell^2
+// must be a multiple of the warp size (32 for NVIDIA, 64
+// for AMD)
 static constexpr std::size_t secondary_rays_per_cell = 16;
 
 static constexpr std::size_t max_batch_size = 32*1024;
