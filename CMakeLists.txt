@@ -26,12 +26,13 @@ endif()
 find_package(OpenCL REQUIRED)
 find_package(Boost
   1.61      # Minimum version
-  REQUIRED)  # Fail with error if Boost is not found
+  REQUIRED
+  program_options)  # Fail with error if Boost is not found
 
 
-include_directories(${PROJECT_BINARY_DIR} ${PROJECT_SOURCE_DIR}  ${OpenCL_INCLUDE_DIRS} ${PROJECT_SOURCE_DIR}/include)
+include_directories(${PROJECT_BINARY_DIR} ${PROJECT_SOURCE_DIR} ${Boost_INCLUDE_DIR}  ${OpenCL_INCLUDE_DIRS} ${PROJECT_SOURCE_DIR}/include)
 add_executable(teralens src/teralens.cpp)
-target_link_libraries (teralens ${OpenCL_LIBRARIES} -lcfitsio)
+target_link_libraries (teralens ${OpenCL_LIBRARIES} ${Boost_PROGRAM_OPTIONS_LIBRARY} -lcfitsio)
 
 
 

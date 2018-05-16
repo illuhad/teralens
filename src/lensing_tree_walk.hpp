@@ -34,6 +34,7 @@
 #include "configuration.hpp"
 #include "lensing_moments.hpp"
 #include "interpolation.hpp"
+#include "pixel_screen.hpp"
 
 namespace teralens {
 
@@ -250,104 +251,6 @@ private:
   )
 };
 
-class pixel_screen
-{
-public:
-  QCL_MAKE_MODULE(pixel_screen)
-
-  pixel_screen(const qcl::device_context_ptr& ctx,
-               const std::size_t num_pix_x,
-               const std::size_t num_pix_y,
-               const vector2& pixel_screen_center,
-               const vector2& pixel_screen_extent)
-    : _ctx{ctx},
-      _num_pix_x{num_pix_x},
-      _num_pix_y{num_pix_y},
-      _pixel_screen{ctx, num_pix_x * num_pix_y},
-      _center{pixel_screen_center},
-      _extent{pixel_screen_extent}
-  {
-    cl_int err = this->init_pixel_screen(ctx,
-                                         cl::NDRange{num_pix_x*num_pix_y},
-                                         cl::NDRange{256})(
-          _pixel_screen,
-          static_cast<cl_ulong>(_num_pix_x),
-          static_cast<cl_ulong>(_num_pix_y));
-
-    qcl::check_cl_error(err, "Could not enqueue init_pixel_screen kernel");
-  }
-
-  const qcl::device_array<cl_int>& get_screen() const
-  {
-    return _pixel_screen;
-  }
-
-  std::size_t get_num_pix_x() const
-  { return _num_pix_x; }
-
-
-  std::size_t get_num_pix_y() const
-  { return _num_pix_y; }
-
-  vector2 get_screen_center() const
-  {
-    return _center;
-  }
-
-  vector2 get_screen_extent() const
-  {
-    return _extent;
-  }
-private:
-  qcl::device_context_ptr _ctx;
-
-  std::size_t _num_pix_x;
-  std::size_t _num_pix_y;
-  vector2 _center;
-  vector2 _extent;
-
-  qcl::device_array<cl_int> _pixel_screen;
-
-  QCL_ENTRYPOINT(init_pixel_screen)
-  QCL_ENTRYPOINT(count_ray_impacts)
-  QCL_MAKE_SOURCE(
-    QCL_IMPORT_TYPE(vector2)
-    QCL_RAW(
-      __kernel void init_pixel_screen(__global int* screen,
-                                      ulong num_px_x,
-                                      ulong num_px_y)
-      {
-        size_t tid = get_global_id(0);
-        if(tid < num_px_x * num_px_y)
-          screen[tid] = 0;
-      }
-
-
-
-      void count_ray_impact(vector2 pos,
-                            __global int* restrict pixels,
-                            ulong num_px_x,
-                            ulong num_px_y,
-                            vector2 screen_center,
-                            vector2 screen_extent)
-      {
-
-        vector2 screen_min_corner = screen_center - 0.5f * screen_extent;
-        vector2 pixel_size = (vector2)(screen_extent.x / num_px_x,
-                                       screen_extent.y / num_px_y);
-
-        int2 pixel = convert_int2((pos - screen_min_corner)/pixel_size);
-
-        if(pixel.x >= 0 &&
-           pixel.y >= 0 &&
-           pixel.x < num_px_x &&
-           pixel.y < num_px_y)
-          atomic_inc(pixels + pixel.y * num_px_x + pixel.x);
-      }
-
-    )
-  )
-};
 
 // Max_particles_per_ray must be a power of 2.
 template<std::size_t Max_particles_per_ray>
@@ -438,141 +341,8 @@ private:
     QCL_IMPORT_CONSTANT(num_multipole_evaluations)
     QCL_IMPORT_CONSTANT(secondary_rays_per_cell)
     QCL_IMPORT_CONSTANT(cells_per_ray)
-    R"(
-
-      #define LOAD_INTERPOLATION_VALUES(output_x, output_y,                 \
-                                        temp_deflection,                    \
-                                        deflections_begin,                  \
-                                        offset_indices,                     \
-                                        vector_element)                     \
-        temp_deflection = deflections_begin[offset_indices.vector_element]; \
-        output_x.vector_element = temp_deflection.s0;                       \
-        output_y.vector_element = temp_deflection.s1
-
-
-      __constant uchar16 interpolation_indices [] =
-      {
-        // Lower left interpolation cell
-        (uchar16)(0,1,2,3, 5,6,7,8,     10,11,12,13, 15,16,17,18),
-        // Lower right interpolation cell
-        (uchar16)(1,2,3,4, 6,7,8,9,     11,12,13,14, 16,17,18,19),
-        // Upper left interpolation cell
-        (uchar16)(5,6,7,8, 10,11,12,13, 15,16,17,18, 20,21,22,23),
-        // Upper right interpolation cell
-        (uchar16)(6,7,8,9, 11,12,13,14, 16,17,18,19, 21,22,23,24)
-      };
-    )"
     QCL_RAW(
-/*
-      __kernel void compute_interpolation_deflections(__global vector8* selected_nodes0,
-                                                      __global vector8* selected_nodes1,
-                                                      __global uint* num_selected_nodes,
-                                                      __global vector2* primary_ray_positions,
-                                                      ulong num_primary_rays,
-                                                      scalar primary_ray_separation,
-                                                      __global vector2* interpolation_deflections)
-      {
-        __local vector16 multipole_cache [Max_nodes_per_ray];
 
-        const size_t lid = get_local_id(0);
-        const int2 lid2d = (int2)(lid % interpolation_ray_grid_size - interpolation_ray_grid_size/2,
-                                  lid / interpolation_ray_grid_size - interpolation_ray_grid_size/2);
-        const scalar secondary_ray_separation = 0.5f * primary_ray_separation;
-
-        for(size_t primary_ray_id = get_group_id(0);
-            primary_ray_id < num_primary_rays;
-            primary_ray_id += get_num_groups(0))
-        {
-          const vector2 primary_ray_position = primary_ray_positions[primary_ray_id];
-          const uint num_nodes = num_selected_nodes[primary_ray_id];
-
-          for(int i = lid; i < num_nodes; i += get_local_size(0))
-          {
-            lensing_multipole_expansion expansion;
-            EXPANSION_LO(expansion) = selected_nodes0[primary_ray_id * Max_nodes_per_ray + i];
-            EXPANSION_HI(expansion) = selected_nodes1[primary_ray_id * Max_nodes_per_ray + i];
-
-            multipole_cache[i] = expansion;
-          }
-
-          barrier(CLK_LOCAL_MEM_FENCE);
-
-          if(lid < num_multipole_evaluations)
-          {
-            const vector2 evaluation_point = primary_ray_position
-                                           + secondary_ray_separation * convert_float2(lid2d);
-
-            vector2 deflection = (vector2)0.0f;
-
-            for(int i = 0; i < num_nodes; ++i)
-              deflection -= multipole_expansion_evaluate(multipole_cache[i], evaluation_point);
-
-            interpolation_deflections[primary_ray_id * num_multipole_evaluations + lid] = deflection;
-          }
-        }
-      }
-
-
-
-      __kernel void compute_interpolation_coefficients(
-                      __global vector2* interpolation_deflections,
-                      ulong num_primary_rays,
-                      __global bicubic_interpolation_coefficients* coefficients_x,
-                      __global bicubic_interpolation_coefficients* coefficients_y)
-      {
-        size_t tid = get_global_id(0);
-
-        if(tid < cells_per_ray * num_primary_rays)
-        {
-          const ulong primary_ray_id = tid / cells_per_ray;
-          vector16 input_values_x;
-          vector16 input_values_y;
-
-          const uchar16 cell_interpolation_indices = interpolation_indices[tid - primary_ray_id];
-          __global vector2* deflections_begin =
-                      interpolation_deflections + primary_ray_id * num_multipole_evaluations;
-
-          vector2 temp;
-          LOAD_INTERPOLATION_VALUES(input_values_x, input_values_y,
-                                    temp, deflections_begin, cell_interpolation_indices, s0);
-          LOAD_INTERPOLATION_VALUES(input_values_x, input_values_y,
-                                    temp, deflections_begin, cell_interpolation_indices, s1);
-          LOAD_INTERPOLATION_VALUES(input_values_x, input_values_y,
-                                    temp, deflections_begin, cell_interpolation_indices, s2);
-          LOAD_INTERPOLATION_VALUES(input_values_x, input_values_y,
-                                    temp, deflections_begin, cell_interpolation_indices, s3);
-          LOAD_INTERPOLATION_VALUES(input_values_x, input_values_y,
-                                    temp, deflections_begin, cell_interpolation_indices, s4);
-          LOAD_INTERPOLATION_VALUES(input_values_x, input_values_y,
-                                    temp, deflections_begin, cell_interpolation_indices, s5);
-          LOAD_INTERPOLATION_VALUES(input_values_x, input_values_y,
-                                    temp, deflections_begin, cell_interpolation_indices, s6);
-          LOAD_INTERPOLATION_VALUES(input_values_x, input_values_y,
-                                    temp, deflections_begin, cell_interpolation_indices, s7);
-          LOAD_INTERPOLATION_VALUES(input_values_x, input_values_y,
-                                    temp, deflections_begin, cell_interpolation_indices, s8);
-          LOAD_INTERPOLATION_VALUES(input_values_x, input_values_y,
-                                    temp, deflections_begin, cell_interpolation_indices, s9);
-          LOAD_INTERPOLATION_VALUES(input_values_x, input_values_y,
-                                    temp, deflections_begin, cell_interpolation_indices, sa);
-          LOAD_INTERPOLATION_VALUES(input_values_x, input_values_y,
-                                    temp, deflections_begin, cell_interpolation_indices, sb);
-          LOAD_INTERPOLATION_VALUES(input_values_x, input_values_y,
-                                    temp, deflections_begin, cell_interpolation_indices, sc);
-          LOAD_INTERPOLATION_VALUES(input_values_x, input_values_y,
-                                    temp, deflections_begin, cell_interpolation_indices, sd);
-          LOAD_INTERPOLATION_VALUES(input_values_x, input_values_y,
-                                    temp, deflections_begin, cell_interpolation_indices, se);
-          LOAD_INTERPOLATION_VALUES(input_values_x, input_values_y,
-                                    temp, deflections_begin, cell_interpolation_indices, sf);
-
-          const bicubic_interpolation_coefficients coeffs_x = bicubic_interpolation_init(input_values_x);
-          const bicubic_interpolation_coefficients coeffs_y = bicubic_interpolation_init(input_values_y);
-
-          coefficients_x[tid] = coeffs_x;
-          coefficients_y[tid] = coeffs_y;
-        }
-      } */
 
       // id should be <= 3. Translates id into
       // 2d indices ranging from -1 to 0 in each component
@@ -663,8 +433,7 @@ private:
                      (vector2)(1.f - shear - convergence_smooth,
                                1.f + shear - convergence_smooth) * evaluation_position;
 
-            // and count the impact in the pixel screen
-
+          // and count the impact in the pixel screen
           count_ray_impact(shear_convergence_term - deflection,
                            pixels,
                            num_px_x, num_px_y,

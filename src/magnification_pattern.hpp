@@ -48,7 +48,7 @@ public:
                  scalar source_plane_size,
                  std::size_t random_seed = 12345,
                  scalar overshooting_region_size = 6.0f,
-                 scalar lens_and_ray_region_size_ratio = 1.5f)
+                 scalar lens_and_ray_region_size_ratio = 3.f)
     : _convergence_c{convergence_stars},
       _convergence_s{convergence_smooth},
       _shear{shear},
@@ -152,11 +152,12 @@ private:
   }
 };
 
+/*
 using grouped_dfs_query_engine = spatialcl::query::engine::grouped_depth_first
 <
   lensing_tree,
   primary_ray_query
->;
+>;*/
 
 using dfs_query_engine = spatialcl::query::engine::depth_first
 <
@@ -178,7 +179,7 @@ public:
 
   qcl::device_array<int> run(std::size_t resolution,
                              scalar num_primary_rays_ppx,
-                             scalar tree_opening_angle = 0.4)
+                             scalar tree_opening_angle = 0.2)
   {
     using query_engine_type = dfs_query_engine;
 
@@ -258,13 +259,11 @@ public:
                     _system.get_smooth_convergence(),
                     _system.get_shear());
 
-      qcl::check_cl_error(_ctx->get_command_queue().finish(),
-                          "Error while waiting for the lensing query "
-                          "to finish.");
-
-      std::cout << "  okay." << std::endl;
-
     }
+
+    qcl::check_cl_error(_ctx->get_command_queue().finish(),
+                        "Error while waiting for the lensing query "
+                        "to finish.");
 
 
     return screen.get_screen();

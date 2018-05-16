@@ -350,7 +350,7 @@ private:
                                                      __global vector_type* reduction_spill_buffer0,
                                                      __global  node_type1* reduction_spill_buffer1)
         {
-          /*
+/*
           const ulong num_particles_per_node = BT_LEAVES_PER_NODE(current_level, effective_num_levels);
           size_t tid = get_global_id(0);
           const ulong effective_node_idx =

@@ -49,11 +49,10 @@ using vector_type =
 // Must be a power of two, and secondary_rays_per_cell^2
 // must be a multiple of the warp size (32 for NVIDIA, 64
 // for AMD)
-static constexpr std::size_t secondary_rays_per_cell = 16;
+static constexpr std::size_t secondary_rays_per_cell = 32;
 
-static constexpr std::size_t max_batch_size = 64*1024;
+static constexpr std::size_t max_batch_size = 256*1024;
 
-static constexpr std::size_t max_selected_nodes = 256;
 static constexpr std::size_t max_selected_particles = 128;
 
 
