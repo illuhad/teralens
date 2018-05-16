@@ -29,6 +29,7 @@
 
 namespace teralens {
 
+
 using scalar = float;
 
 // Use a type system defined by the scalar type, in 2D, with 3 components per

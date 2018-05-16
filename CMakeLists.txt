@@ -29,10 +29,15 @@ find_package(Boost
   REQUIRED
   program_options)  # Fail with error if Boost is not found
 
-
 include_directories(${PROJECT_BINARY_DIR} ${PROJECT_SOURCE_DIR} ${Boost_INCLUDE_DIR}  ${OpenCL_INCLUDE_DIRS} ${PROJECT_SOURCE_DIR}/include)
-add_executable(teralens src/teralens.cpp)
-target_link_libraries (teralens ${OpenCL_LIBRARIES} ${Boost_PROGRAM_OPTIONS_LIBRARY} -lcfitsio)
+
+add_executable(teralens_cpu src/teralens.cpp)
+add_executable(teralens_gpu src/teralens.cpp)
+
+target_compile_definitions(teralens_cpu PRIVATE TERALENS_CPU_FALLBACK)
+
+target_link_libraries (teralens_cpu ${OpenCL_LIBRARIES} ${Boost_PROGRAM_OPTIONS_LIBRARY} -lcfitsio)
+target_link_libraries (teralens_gpu ${OpenCL_LIBRARIES} ${Boost_PROGRAM_OPTIONS_LIBRARY} -lcfitsio)
 
 
 

@@ -51,13 +51,19 @@ int main(int argc, char** argv)
 
     std::string output_filename;
 
+    std::string rays_ppx_desc =
+        "Number of primary rays traced for each pixel. "
+        "The total number of rays is given by the total "
+        "number of primary rays times "
+        +std::to_string(4*teralens::secondary_rays_per_cell*teralens::secondary_rays_per_cell);
+
     po::options_description desc("Allowed options");
     desc.add_options()
         ("help", "print help message")
-        ("kappa_star,k_*",
+        ("kappa_star",
          po::value<teralens::scalar>(&stellar_convergence)->default_value(0.2f),
          "convergence due to stars")
-        ("kappa_smooth,k_s",
+        ("kappa_smooth",
          po::value<teralens::scalar>(&smooth_convergence)->default_value(0.0f),
          "convergence due to smooth matter")
         ("gamma,g", po::value<teralens::scalar>(&shear)->default_value(0.1f), "shear")
@@ -68,7 +74,8 @@ int main(int argc, char** argv)
          "Random seed")
         ("opening_angle,o", po::value<teralens::scalar>(&tree_opening_angle)->default_value(0.4f),
          "Opening angle of Barnes-Hut tree")
-        ("primary_rays_ppx,pr", po::value<teralens::scalar>(&primary_rays_ppx)->default_value(0.1f))
+        ("primary_rays_ppx,p", po::value<teralens::scalar>(&primary_rays_ppx)->default_value(0.1f),
+         rays_ppx_desc.c_str())
         ("resolution,r", po::value<std::size_t>(&resolution)->default_value(1024),
          "Number of pixels of the magnification pattern in x and y direction")
         ("output,o", po::value<std::string>(&output_filename)->default_value("teralens.fits"),
@@ -95,10 +102,14 @@ int main(int argc, char** argv)
 
 
     qcl::environment env;
+#ifdef TERALENS_CPU_FALLBACK
+    qcl::global_context_ptr global_ctx = env.create_global_cpu_context();
+#else
     const cl::Platform& platform =
         env.get_platform_by_preference({"NVIDIA", "AMD", "Intel"});
     qcl::global_context_ptr global_ctx =
         env.create_global_context(platform, CL_DEVICE_TYPE_GPU);
+#endif
 
     if(global_ctx->get_num_devices() == 0)
     {

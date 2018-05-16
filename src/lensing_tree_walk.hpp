@@ -280,9 +280,10 @@ public:
 
 
     std::size_t total_num_rays_per_cell = secondary_rays_per_cell*secondary_rays_per_cell;
+
     cl_int err = this->evaluate_lens_equation(_ctx,
-                                              cl::NDRange{total_num_rays_per_cell * cells_per_ray * num_primary_rays},
-                                              cl::NDRange{std::max(Max_particles_per_ray,total_num_rays_per_cell)})(
+                        cl::NDRange{total_num_rays_per_cell * cells_per_ray * num_primary_rays},
+                        cl::NDRange{std::max(Max_particles_per_ray,total_num_rays_per_cell)})(
           primary_ray_positions,
           selected_particles,
           num_selected_particles,
@@ -396,7 +397,6 @@ private:
         const uchar2 rid = ray_id2d(lid);
         const vector2 evaluation_position = interpolation_cell_min_corner
             + secondary_ray_separation*(convert_float2(rid)+(vector2)0.5f);
-
 
         // Collectively load exact particles into local memory
         if(lid < num_particles)
