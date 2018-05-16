@@ -526,7 +526,7 @@ private:
                                            const scalar ray_separation,
                                            const vector2 screen_min_corner)
       {
-        const size_t tid = get_global_id(0);
+        const ulong tid = get_global_id(0);
 
         if(tid < num_rays)
         {

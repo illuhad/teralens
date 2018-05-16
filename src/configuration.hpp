@@ -47,6 +47,9 @@ using particle_type =
 using vector_type =
   spatialcl::configuration<type_system>::vector_type;
 
+// Maximum number of lenses calculated with a brute force algorithm
+static constexpr std::size_t max_brute_force_lenses = 512;
+
 // Must be a power of two, and secondary_rays_per_cell^2
 // must be a multiple of the warp size (32 for NVIDIA, 64
 // for AMD)
@@ -55,6 +58,10 @@ static constexpr std::size_t secondary_rays_per_cell = 32;
 static constexpr std::size_t max_batch_size = 256*1024;
 
 static constexpr std::size_t max_selected_particles = 128;
+
+// Do not change - changing this will not actually change the number
+// of cells!
+static constexpr std::size_t num_interpolation_cells = 4;
 
 
 }

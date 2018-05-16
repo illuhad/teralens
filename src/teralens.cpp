@@ -55,7 +55,9 @@ int main(int argc, char** argv)
         "Number of primary rays traced for each pixel. "
         "The total number of rays is given by the total "
         "number of primary rays times "
-        +std::to_string(4*teralens::secondary_rays_per_cell*teralens::secondary_rays_per_cell);
+        +std::to_string(teralens::num_interpolation_cells
+                       *teralens::secondary_rays_per_cell
+                       *teralens::secondary_rays_per_cell);
 
     po::options_description desc("Allowed options");
     desc.add_options()

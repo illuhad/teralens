@@ -34,6 +34,7 @@
 #include "configuration.hpp"
 #include "lensing_tree.hpp"
 #include "lensing_tree_walk.hpp"
+#include "brute_force.hpp"
 
 namespace teralens {
 
@@ -173,16 +174,14 @@ public:
   magnification_pattern_generator(const qcl::device_context_ptr& ctx,
                                   const lensing_system& system)
     : _ctx{ctx},
-      _system{system},
-      _tree{ctx, system.get_particles()}
-  {}
+      _system{system}
+  {
+  }
 
   qcl::device_array<int> run(std::size_t resolution,
                              scalar num_primary_rays_ppx,
                              scalar tree_opening_angle = 0.2)
   {
-    using query_engine_type = dfs_query_engine;
-
     // Calculate lower-left corner of the shooting region
     vector2 shooting_region_min_corner = _system.get_shooting_region_extent();
     for(int i = 0; i < 2; ++i)
@@ -193,16 +192,33 @@ public:
     scalar px_size_y = _system.get_shooting_region_extent().s[1] / resolution;
     scalar ray_distance = std::sqrt(px_size_x * px_size_y / num_primary_rays_ppx);
 
+    bool use_tree = _system.get_particles().size() > max_brute_force_lenses;
 
+    if(!use_tree)
+    {
+      std::size_t secondary_rays_per_primary_ray = 2 * secondary_rays_per_cell;
+      ray_distance /= secondary_rays_per_primary_ray;
+    }
+
+    std::size_t num_rays_x =
+        static_cast<std::size_t>(_system.get_shooting_region_extent().s[0] / ray_distance);
+    std::size_t num_rays_y =
+        static_cast<std::size_t>(_system.get_shooting_region_extent().s[1] / ray_distance);
+
+    // If we are using the brute-force backend, use a larger batch size
+    std::size_t effective_max_batch_size = max_batch_size;
+
+    if(!use_tree)
+      effective_max_batch_size *= 16;
     // Create a ray_scheduler object, which will be used to calculate
     // the coordinates of the primary rays
     ray_scheduler scheduler{
       _ctx,
       shooting_region_min_corner,
       ray_distance,
-      static_cast<std::size_t>(_system.get_shooting_region_extent().s[0] / ray_distance),
-      static_cast<std::size_t>(_system.get_shooting_region_extent().s[1] / ray_distance),
-      max_batch_size
+      num_rays_x,
+      num_rays_y,
+      effective_max_batch_size
     };
 
     // Create pixel screen object, which will count the rays in each pixel
@@ -214,8 +230,6 @@ public:
       {{_system.get_source_plane_size(), _system.get_source_plane_size()}}
     };
 
-
-    query_engine_type lensing_query_engine;
     for(int i = 0; !scheduler.all_rays_processed(); ++i)
     {
       std::cout << "--> Tracing rays of batch " << i << std::endl;
@@ -224,42 +238,24 @@ public:
       std::size_t num_rays_in_batch = scheduler.generate_ray_batch();
       std::cout << "  Scheduled " << num_rays_in_batch << " primary rays." << std::endl;
 
-      // Formulate tree query to determine which stars must be included
-      // exactly in the calculation, and which nodes' multipole expansion
-      // must be included.
-      primary_ray_query ray_query{
-        _ctx,
-        scheduler.get_current_batch(),
-        num_rays_in_batch,
-        max_selected_particles,
-        ray_distance,
-        tree_opening_angle
-      };
-      // Run tree query
-      std::cout << "  Running tree queries for primary rays..." << std::endl;
-      lensing_query_engine(this->_tree, ray_query);
-
-      // Create secondary ray tracer, which will create interpolation cells
-      // for the long-range deflections and evaluate the close-range
-      // deflections from close stars at many locations for each primary ray
-      secondary_ray_tracer<max_selected_particles> ray_evaluator {
-        _ctx,
-        &screen
-      };
-
-      // Run secondary ray tracer
-      std::cout << "  Tracing secondary rays..." << std::endl;
-      ray_evaluator(scheduler.get_current_batch(),
-                    num_rays_in_batch,
-                    ray_distance,
-                    ray_query.get_num_selected_particles(),
-                    ray_query.get_selected_particles(),
-                    ray_query.get_interpolation_coeffs_x(),
-                    ray_query.get_interpolation_coeffs_y(),
-                    _system.get_smooth_convergence(),
-                    _system.get_shear());
+      if(use_tree)
+      {
+        this->solve_with_tree(scheduler,
+                              num_rays_in_batch,
+                              ray_distance,
+                              tree_opening_angle,
+                              screen);
+      }
+      else
+      {
+        this->solve_with_brute_force(scheduler,
+                                     num_rays_in_batch,
+                                     ray_distance,
+                                     screen);
+      }
 
     }
+
 
     qcl::check_cl_error(_ctx->get_command_queue().finish(),
                         "Error while waiting for the lensing query "
@@ -270,9 +266,81 @@ public:
   }
 
 private:
+  void solve_with_tree(const ray_scheduler& scheduler,
+                       const std::size_t num_rays_in_batch,
+                       const scalar ray_distance,
+                       const scalar tree_opening_angle,
+                       pixel_screen& screen)
+  {
+
+    if(this->_tree == nullptr)
+      _tree = std::make_shared<lensing_tree>(_ctx, _system.get_particles());
+
+    dfs_query_engine lensing_query_engine;
+    // Formulate tree query to determine which stars must be included
+    // exactly in the calculation, and which nodes' multipole expansion
+    // must be included.
+    primary_ray_query ray_query{
+      _ctx,
+      scheduler.get_current_batch(),
+      num_rays_in_batch,
+      max_selected_particles,
+      ray_distance,
+      tree_opening_angle
+    };
+    // Run tree query
+    std::cout << "  Running tree queries for primary rays..." << std::endl;
+    lensing_query_engine(*_tree, ray_query);
+
+    // Create secondary ray tracer, which will create interpolation cells
+    // for the long-range deflections and evaluate the close-range
+    // deflections from close stars at many locations for each primary ray
+    secondary_ray_tracer<max_selected_particles> ray_evaluator {
+      _ctx,
+      &screen
+    };
+
+    // Run secondary ray tracer
+    std::cout << "  Tracing secondary rays..." << std::endl;
+    ray_evaluator(scheduler.get_current_batch(),
+                  num_rays_in_batch,
+                  ray_distance,
+                  ray_query.get_num_selected_particles(),
+                  ray_query.get_selected_particles(),
+                  ray_query.get_interpolation_coeffs_x(),
+                  ray_query.get_interpolation_coeffs_y(),
+                  _system.get_smooth_convergence(),
+                  _system.get_shear());
+
+  }
+
+  void solve_with_brute_force(const ray_scheduler& scheduler,
+                              const std::size_t num_rays_in_batch,
+                              const scalar ray_distance,
+                              pixel_screen& screen) const
+  {
+    brute_force_ray_tracer ray_tracer{
+      _ctx,
+      _system.get_particles(),
+      _system.get_particles().size(),
+      &screen
+    };
+
+    ray_tracer(scheduler.get_current_batch(),
+               num_rays_in_batch,
+               _system.get_smooth_convergence(),
+               _system.get_shear());
+
+    qcl::check_cl_error(_ctx->get_command_queue().finish(),
+                        "Error while waiting for the brute force query "
+                        "to finish.");
+
+
+  }
+
   qcl::device_context_ptr _ctx;
   lensing_system _system;
-  lensing_tree _tree;
+  std::shared_ptr<lensing_tree> _tree;
 
 };
 
