@@ -30,6 +30,7 @@
 
 #include <QCL/qcl_array.hpp>
 #include <SpatialCL/query.hpp>
+#include <ostream>
 
 #include "configuration.hpp"
 #include "lensing_tree.hpp"
@@ -172,9 +173,11 @@ class magnification_pattern_generator
 public:
 
   magnification_pattern_generator(const qcl::device_context_ptr& ctx,
-                                  const lensing_system& system)
+                                  const lensing_system& system,
+                                  std::ostream& log)
     : _ctx{ctx},
-      _system{system}
+      _system{system},
+      _log{log}
   {
   }
 
@@ -232,11 +235,11 @@ public:
 
     for(int i = 0; !scheduler.all_rays_processed(); ++i)
     {
-      std::cout << "--> Tracing rays of batch " << i << std::endl;
+      _log << "--> Tracing rays of batch " << i << std::endl;
 
       // Generate a batch of primary ray positions on the GPU
       std::size_t num_rays_in_batch = scheduler.generate_ray_batch();
-      std::cout << "  Scheduled " << num_rays_in_batch << " primary rays." << std::endl;
+      _log << "  Scheduled " << num_rays_in_batch << " primary rays." << std::endl;
 
       if(use_tree)
       {
@@ -289,10 +292,10 @@ private:
       tree_opening_angle
     };
     // Run tree query
-    std::cout << "  Running tree queries for primary rays..." << std::endl;
+    _log << "  Running tree queries for primary rays..." << std::endl;
     lensing_query_engine(*_tree, ray_query);
 
-    // Create secondary ray tracer, which will create interpolation cells
+    // Create secondary ray tracer, which will sample interpolation cells
     // for the long-range deflections and evaluate the close-range
     // deflections from close stars at many locations for each primary ray
     secondary_ray_tracer<max_selected_particles> ray_evaluator {
@@ -301,7 +304,7 @@ private:
     };
 
     // Run secondary ray tracer
-    std::cout << "  Tracing secondary rays..." << std::endl;
+    _log << "  Tracing secondary rays..." << std::endl;
     ray_evaluator(scheduler.get_current_batch(),
                   num_rays_in_batch,
                   ray_distance,
@@ -341,6 +344,8 @@ private:
   qcl::device_context_ptr _ctx;
   lensing_system _system;
   std::shared_ptr<lensing_tree> _tree;
+
+  std::ostream& _log;
 
 };
 

@@ -170,7 +170,9 @@ private:
                         node0,
                         node1)
       {
-        const vector_type R = CENTER_OF_MASS(node0) - ray_position;
+        // The NODE_EXTENT field is overwritten after the tree construction
+        // with the geometric center of the node
+        const vector_type R = NODE_EXTENT(node0) - ray_position;
 
         *selection_result_ptr =
             NODE_WIDTH(node0)*NODE_WIDTH(node0) > opening_angle_squared*dot(R,R);

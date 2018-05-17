@@ -30,6 +30,7 @@
 #include "magnification_pattern.hpp"
 #include "fits.hpp"
 #include "multi_array.hpp"
+#include "version.hpp"
 
 namespace po = boost::program_options;
 
@@ -37,7 +38,9 @@ int main(int argc, char** argv)
 {
   try
   {
-    std::cout << "Teralens version 0.2, Copyright (c) 2018 Aksel Alpay"
+    std::cout << "Teralens "
+              << teralens::annotated_version_string()
+              << ", Copyright (c) 2018 Aksel Alpay"
               << std::endl;
 
     teralens::scalar stellar_convergence, smooth_convergence;
@@ -74,7 +77,7 @@ int main(int argc, char** argv)
          "The physical size of the magnification pattern in Einstein radii")
         ("seed", po::value<std::size_t>(&random_seed)->default_value(600001),
          "Random seed")
-        ("opening_angle,o", po::value<teralens::scalar>(&tree_opening_angle)->default_value(0.4f),
+        ("opening_angle,a", po::value<teralens::scalar>(&tree_opening_angle)->default_value(0.4f),
          "Opening angle of Barnes-Hut tree")
         ("primary_rays_ppx,p", po::value<teralens::scalar>(&primary_rays_ppx)->default_value(0.1f),
          rays_ppx_desc.c_str())
@@ -135,8 +138,10 @@ int main(int argc, char** argv)
       random_seed
     };
 
+    std::cout << "Number of lenses: " << system.get_particles().size() << std::endl;
 
-    teralens::magnification_pattern_generator generator{ctx, system};
+
+    teralens::magnification_pattern_generator generator{ctx, system, std::cout};
     qcl::device_array<int> pixel_screen =
         generator.run(resolution, primary_rays_ppx, tree_opening_angle);
 

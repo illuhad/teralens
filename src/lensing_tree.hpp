@@ -68,8 +68,6 @@ public:
     // Need at least two particles for the tree
     assert(particles.size() > 2);
 
-    std::cout << "Number of particles: " << particles.size() << std::endl;
-
     this->init_multipoles();
   }
 
@@ -95,7 +93,9 @@ private:
   }
 
   void init_nodes_and_monopoles()
-  {
+  { 
+    // Temporary storage for the center coordinates of the nodes
+    qcl::device_array<vector2> node_centers{_ctx, this->get_effective_num_particles()};
 
     // First, build lowest level
     std::size_t lowest_level_num_nodes = (this->get_num_particles() + 1) >> 1;
@@ -105,7 +105,8 @@ private:
           (this->get_node_values0(),
            this->get_node_values1(),
            this->get_sorted_particles(),
-           static_cast<cl_ulong>(this->get_num_particles()));
+           static_cast<cl_ulong>(this->get_num_particles()),
+           node_centers);
 
     qcl::check_cl_error(err, "Could not enqueue build_ll_nodes kernel");
 
@@ -119,9 +120,20 @@ private:
            static_cast<cl_uint>(level),
            static_cast<cl_ulong>(this->get_num_particles()),
            static_cast<cl_ulong>(this->get_effective_num_particles()),
-           static_cast<cl_ulong>(this->get_effective_num_levels()));
+           static_cast<cl_ulong>(this->get_effective_num_levels()),
+           node_centers);
       qcl::check_cl_error(err, "Could not enqueue build_nodes kernel");
     }
+
+    // Set the node_extent field to the node center, because the extents
+    // are not required anymore after the tree construction
+    err = this->assign_node_extents_to_node_centers(_ctx,
+                                                    cl::NDRange{this->get_num_nodes()},
+                                                    cl::NDRange{128})(
+            node_centers,
+            this->get_node_values0(),
+            static_cast<cl_ulong>(this->get_num_nodes()));
+    qcl::check_cl_error(err, "Could not enqueue assign_node_extents_to_node_centers kernel");
 
     err = _ctx->get_command_queue().finish();
     qcl::check_cl_error(err,"Error while waiting for build_monopoles kernel to finish");
@@ -190,6 +202,7 @@ private:
 
   QCL_ENTRYPOINT(build_ll_nodes)
   QCL_ENTRYPOINT(build_nodes)
+  QCL_ENTRYPOINT(assign_node_extents_to_node_centers)
   QCL_ENTRYPOINT(build_higher_multipole_moments)
   QCL_ENTRYPOINT(sum_reduction_spill_buffer)
   QCL_MAKE_SOURCE(
@@ -204,7 +217,8 @@ private:
         __kernel void build_ll_nodes(__global node_type0* nodes0,
                                      __global node_type1* nodes1,
                                      __global particle_type* particles,
-                                     const ulong num_particles)
+                                     const ulong num_particles,
+                                     __global vector_type* node_centers)
         {
           ulong num_nodes = num_particles >> 1;
           if(num_particles & 1)
@@ -245,6 +259,8 @@ private:
             nodes0[tid] = EXPANSION_LO(expansion);
             nodes1[tid] = EXPANSION_HI(expansion);
 
+            node_centers[tid] = 0.5f * (left_particle.xy + right_particle.xy);
+
           }
         }
 
@@ -253,7 +269,8 @@ private:
                                   const uint current_level,
                                   const ulong num_particles,
                                   const ulong effective_num_particles,
-                                  const ulong effective_num_levels)
+                                  const ulong effective_num_levels,
+                                  __global vector_type* node_centers)
         {
           ulong num_nodes = BT_NUM_NODES(current_level);
 
@@ -285,10 +302,14 @@ private:
               vector_type left_child_node_extent = NODE_EXTENT(left_child_node);
               vector_type right_child_node_extent = (vector_type)0.0f;
 
+              vector_type left_child_node_center = node_centers[effective_child_idx];
+              vector_type right_child_node_center = left_child_node_center;
+
               if(right_child_exists)
               {
                 right_child_node        = nodes0[effective_child_idx + 1];
                 right_child_node_extent = NODE_EXTENT(right_child_node);
+                right_child_node_center = node_centers[effective_child_idx + 1];
               }
               scalar left_mass  = MASS(left_child_node );
               scalar right_mass = MASS(right_child_node);
@@ -300,24 +321,41 @@ private:
               scalar total_mass = left_mass + right_mass;
               parent_com /= total_mass;
 
+              vector_type parent_min_corner =
+                  fmin(left_child_node_center  - 0.5f * NODE_EXTENT(left_child_node),
+                       right_child_node_center - 0.5f * NODE_EXTENT(right_child_node));
+
+              vector_type parent_max_corner =
+                  fmax(left_child_node_center  + 0.5f * NODE_EXTENT(left_child_node),
+                       right_child_node_center + 0.5f * NODE_EXTENT(right_child_node));
+
               node_type0 parent_node = (node_type0)0.0f;
               CENTER_OF_MASS(parent_node) = parent_com;
               MASS          (parent_node) = total_mass;
-              NODE_EXTENT   (parent_node) =
-                          fmax(CENTER_OF_MASS(left_child_node)  + 0.5f * NODE_EXTENT(left_child_node),
-                               CENTER_OF_MASS(right_child_node) + 0.5f * NODE_EXTENT(right_child_node))
-                        - fmin(CENTER_OF_MASS(left_child_node)  - 0.5f * NODE_EXTENT(left_child_node),
-                               CENTER_OF_MASS(right_child_node) - 0.5f * NODE_EXTENT(right_child_node));
+              NODE_EXTENT   (parent_node) = parent_max_corner - parent_min_corner;
               NODE_WIDTH    (parent_node) = fmax(NODE_EXTENT_X(parent_node),
                                                  NODE_EXTENT_Y(parent_node));
+              /*NODE_WIDTH    (parent_node) = sqrt(NODE_EXTENT_X(parent_node)*NODE_EXTENT_X(parent_node) +
+                                                 NODE_EXTENT_Y(parent_node)*NODE_EXTENT_Y(parent_node));*/
 
               ulong effective_node_idx = binary_tree_key_encode_global_id(&node_key,
                                                                           effective_num_levels)
                                        - effective_num_particles;
               // Set result
-              nodes0[effective_node_idx] = parent_node;
+              nodes0      [effective_node_idx] = parent_node;
+              node_centers[effective_node_idx] = 0.5f * (parent_min_corner + parent_max_corner);
             }
           }
+        }
+
+        __kernel void assign_node_extents_to_node_centers(__global vector_type* node_centers,
+                                                          __global node_type0* nodes0,
+                                                          ulong num_nodes)
+        {
+          size_t tid = get_global_id(0);
+
+          if(tid < num_nodes)
+            NODE_EXTENT(nodes0[tid]) = node_centers[tid];
         }
 
         void sum_multipoles(volatile __local vector_type* subgroup_mem_nodes0,

@@ -32,9 +32,9 @@ namespace teralens {
 using bicubic_interpolation_coefficients = vector16;
 QCL_STANDALONE_MODULE(interpolation)
 QCL_STANDALONE_SOURCE(
-  QCL_INCLUDE_MODULE(spatialcl::configuration<type_system>)
   QCL_IMPORT_TYPE(bicubic_interpolation_coefficients)
   QCL_IMPORT_TYPE(vector16)
+  QCL_IMPORT_TYPE(vector2)
   R"(
     // Define access macros for the entries
     // of the interpolation matrix
@@ -99,11 +99,11 @@ QCL_STANDALONE_SOURCE(
     }
 
     scalar bicubic_unit_square_interpolation(const bicubic_interpolation_coefficients a,
-                                             const vector_type relative_position)
+                                             const vector2 relative_position)
     {
-      const vector_type pos1 = relative_position;
-      const vector_type pos2 = pos1 * pos1;
-      const vector_type pos3 = pos2 * pos1;
+      const vector2 pos1 = relative_position;
+      const vector2 pos2 = pos1 * pos1;
+      const vector2 pos3 = pos2 * pos1;
 
       // Terms for x^0
       scalar result = IP_M00(a);
