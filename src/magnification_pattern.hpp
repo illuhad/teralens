@@ -158,8 +158,9 @@ private:
 using grouped_dfs_query_engine = spatialcl::query::engine::grouped_depth_first
 <
   lensing_tree,
-  primary_ray_query
->;*/
+  primary_ray_query,
+>;
+*/
 
 using dfs_query_engine = spatialcl::query::engine::depth_first
 <

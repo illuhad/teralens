@@ -69,6 +69,22 @@ public:
     assert(particles.size() > 2);
 
     this->init_multipoles();
+/*
+    std::vector<particle_type> host_particles;
+    particles.read(host_particles);
+    std::cout << "p_x=[";
+    for(const auto& p : host_particles)
+    {
+      std::cout << p.s[0] << "," << std::endl;
+    }
+    std::cout << "]";
+
+    std::cout << "p_y=[";
+    for(const auto& p : host_particles)
+    {
+      std::cout << p.s[1] << "," << std::endl;
+    }
+    std::cout << "]";*/
   }
 
 private:
@@ -127,7 +143,7 @@ private:
 
     // Set the node_extent field to the node center, because the extents
     // are not required anymore after the tree construction
-    err = this->assign_node_extents_to_node_centers(_ctx,
+    err = this->assign_node_centers_to_node_extents(_ctx,
                                                     cl::NDRange{this->get_num_nodes()},
                                                     cl::NDRange{128})(
             node_centers,
@@ -202,7 +218,7 @@ private:
 
   QCL_ENTRYPOINT(build_ll_nodes)
   QCL_ENTRYPOINT(build_nodes)
-  QCL_ENTRYPOINT(assign_node_extents_to_node_centers)
+  QCL_ENTRYPOINT(assign_node_centers_to_node_extents)
   QCL_ENTRYPOINT(build_higher_multipole_moments)
   QCL_ENTRYPOINT(sum_reduction_spill_buffer)
   QCL_MAKE_SOURCE(
@@ -348,7 +364,7 @@ private:
           }
         }
 
-        __kernel void assign_node_extents_to_node_centers(__global vector_type* node_centers,
+        __kernel void assign_node_centers_to_node_extents(__global vector_type* node_centers,
                                                           __global node_type0* nodes0,
                                                           ulong num_nodes)
         {
@@ -465,7 +481,7 @@ private:
                          subgroup_lid,
                          subgroup_size);
 
-          if(num_particles_per_node < reduction_group_size)
+          if(num_particles_per_node <= reduction_group_size)
           {
             // We can directly write the results to memory
             if(subgroup_lid == 0 && tid < num_particles)
