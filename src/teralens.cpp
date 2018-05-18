@@ -145,6 +145,11 @@ int main(int argc, char** argv)
     qcl::device_array<int> pixel_screen =
         generator.run(resolution, primary_rays_ppx, tree_opening_angle);
 
+    std::cout << "Performance: "
+              << 1.0/generator.get_last_runtime() << " patterns/s, "
+              << generator.get_last_num_traced_rays()/generator.get_last_runtime() << " rays/s"
+              << std::endl;
+
     // Copy results back to the CPU
     teralens::util::multi_array<int> image{resolution, resolution};
     pixel_screen.read(image.data(), pixel_screen.begin(), pixel_screen.end());

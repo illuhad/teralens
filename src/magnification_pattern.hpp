@@ -36,6 +36,7 @@
 #include "lensing_tree.hpp"
 #include "lensing_tree_walk.hpp"
 #include "brute_force.hpp"
+#include "timer.hpp"
 
 namespace teralens {
 
@@ -178,13 +179,15 @@ public:
                                   std::ostream& log)
     : _ctx{ctx},
       _system{system},
-      _log{log}
+      _log{log},
+      _runtime{0.0},
+      _num_traced_rays{0}
   {
   }
 
   qcl::device_array<int> run(std::size_t resolution,
                              scalar num_primary_rays_ppx,
-                             scalar tree_opening_angle = 0.2)
+                             scalar tree_opening_angle = 0.4)
   {
     // Calculate lower-left corner of the shooting region
     vector2 shooting_region_min_corner = _system.get_shooting_region_extent();
@@ -209,11 +212,19 @@ public:
     std::size_t num_rays_y =
         static_cast<std::size_t>(_system.get_shooting_region_extent().s[1] / ray_distance);
 
+    _num_traced_rays = num_rays_x * num_rays_y;
+    if(use_tree)
+      _num_traced_rays *= 4 * secondary_rays_per_cell * secondary_rays_per_cell;
+
     // If we are using the brute-force backend, use a larger batch size
     std::size_t effective_max_batch_size = max_batch_size;
 
     if(!use_tree)
       effective_max_batch_size *= 16;
+
+    timer t;
+    t.start();
+
     // Create a ray_scheduler object, which will be used to calculate
     // the coordinates of the primary rays
     ray_scheduler scheduler{
@@ -265,8 +276,19 @@ public:
                         "Error while waiting for the lensing query "
                         "to finish.");
 
+    _runtime = t.stop();
 
     return screen.get_screen();
+  }
+
+  double get_last_runtime() const
+  {
+    return _runtime;
+  }
+
+  std::size_t get_last_num_traced_rays() const
+  {
+    return _num_traced_rays;
   }
 
 private:
@@ -347,6 +369,9 @@ private:
   std::shared_ptr<lensing_tree> _tree;
 
   std::ostream& _log;
+
+  double _runtime;
+  std::size_t _num_traced_rays;
 
 };
 
