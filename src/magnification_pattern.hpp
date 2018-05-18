@@ -91,8 +91,8 @@ public:
     scalar gamma = this->get_shear();
 
     vector2 result;
-    result.s[0] = (_mag_pattern_size + _overshooting) / (1.0f - gamma - kappa);
-    result.s[1] = (_mag_pattern_size + _overshooting) / (1.0f + gamma - kappa);
+    result.s[0] = std::abs((_mag_pattern_size + _overshooting) / (1.0f - gamma - kappa));
+    result.s[1] = std::abs((_mag_pattern_size + _overshooting) / (1.0f + gamma - kappa));
 
     return result;
   }
