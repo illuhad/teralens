@@ -92,17 +92,18 @@ int main()
         600001
       };
 
-      std::cout << "N_* = " << system.get_particles().size()
-                << " kappa_* = " << stellar_convergence
-                << " kappa_smooth = " << smooth_convergence
-                << " gamma = " << shear << ": ";
+      std::cout << "Sample " << i << ": " << std::endl;
+      std::cout << "  N_* = " << system.get_particles().size() << "\n"
+                << "  kappa_* = " << stellar_convergence << "\n"
+                << "  kappa_smooth = " << smooth_convergence << "\n"
+                << "  gamma = " << shear << "\n";
 
       std::stringstream dummy_output;
       teralens::magnification_pattern_generator generator{ctx, system, dummy_output};
       qcl::device_array<int> pixel_screen =
           generator.run(resolution, primary_rays_ppx, opening_angle);
 
-      std::cout << 1.0/generator.get_last_runtime() << " patterns/s, "
+      std::cout << "--> " << 1.0/generator.get_last_runtime() << " patterns/s, "
                 << generator.get_last_num_traced_rays()/generator.get_last_runtime() << " rays/s"
                 << std::endl;
 
@@ -110,7 +111,7 @@ int main()
       total_num_rays += generator.get_last_num_traced_rays();
     }
     std::cout << "====================================================" << std::endl;
-    std::cout << "Average performance: "
+    std::cout << "Overall sampling performance: "
               << num_samples/total_runtime << " patterns/s, "
               << total_num_rays/total_runtime << " rays/s"
               << std::endl;
