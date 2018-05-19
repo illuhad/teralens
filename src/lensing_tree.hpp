@@ -212,6 +212,30 @@ private:
 
       particles_per_node *= 2;
     }
+    /*
+    std::vector<node_type0> n0(this->get_effective_num_particles()-1);
+    std::vector<node_type1> n1(this->get_effective_num_particles()-1);
+    _ctx->memcpy_d2h(n0.data(), this->get_node_values0(), this->get_effective_num_particles()-1);
+    _ctx->memcpy_d2h(n1.data(), this->get_node_values1(), this->get_effective_num_particles()-1);
+    std::size_t nodes_in_lvl = this->get_effective_num_particles()/2;
+    std::size_t lvl = 1;
+    std::size_t lvl_begin = 0;
+    for(std::size_t i = 0; i < this->get_effective_num_particles()-1; ++i)
+    {
+      if(i == lvl_begin + nodes_in_lvl)
+      {
+        lvl_begin += nodes_in_lvl;
+        nodes_in_lvl /= 2;
+        ++lvl;
+      }
+
+      std::cout << "Level " << lvl << ", local node id " << i-lvl_begin <<": ";
+      for(std::size_t j = 0; j < 8; ++j)
+        std::cout << n0[i].s[j] << "\t";
+      for(std::size_t j = 0; j < 8; ++j)
+        std::cout << n1[i].s[j] << "\t";
+      std::cout << std::endl;
+    }*/
   }
 
 
@@ -244,11 +268,15 @@ private:
               tid < num_nodes;
               tid += get_global_size(0))
           {
-            ulong left_particle_idx = tid << 1;
+            ulong left_particle_idx  = tid << 1;
             ulong right_particle_idx = left_particle_idx + 1;
 
             particle_type left_particle  = particles[left_particle_idx];
             particle_type right_particle = left_particle;
+            // Make sure that the mass of the right particle is set to 0
+            // in case it does not exist!
+            right_particle.z = 0.f;
+
             if(right_particle_idx < num_particles)
               right_particle = particles[right_particle_idx];
 
@@ -313,7 +341,8 @@ private:
                                         - effective_num_particles;
 
               node_type0 left_child_node = nodes0[effective_child_idx];
-              node_type0 right_child_node = left_child_node;
+              node_type0 right_child_node = (node_type0)0.0f;
+              CENTER_OF_MASS(right_child_node) = CENTER_OF_MASS(left_child_node);
 
               vector_type left_child_node_extent = NODE_EXTENT(left_child_node);
               vector_type right_child_node_extent = (vector_type)0.0f;
@@ -383,11 +412,11 @@ private:
           {
             if(subgroup_lid < i)
             {
-              subgroup_mem_nodes0[subgroup_lid] = subgroup_mem_nodes0[subgroup_lid  ] +
-                                                  subgroup_mem_nodes0[subgroup_lid+i];
+              subgroup_mem_nodes0[subgroup_lid] = convert_float2(convert_double2(subgroup_mem_nodes0[subgroup_lid  ]) +
+                                                                 convert_double2(subgroup_mem_nodes0[subgroup_lid+i]));
 
-              subgroup_mem_nodes1[subgroup_lid] = subgroup_mem_nodes1[subgroup_lid  ] +
-                                                  subgroup_mem_nodes1[subgroup_lid+i];
+              subgroup_mem_nodes1[subgroup_lid] = convert_float8(convert_double8(subgroup_mem_nodes1[subgroup_lid  ]) +
+                                                                 convert_double8(subgroup_mem_nodes1[subgroup_lid+i]));
             }
             // This can be optimized for small summations
             barrier(CLK_LOCAL_MEM_FENCE);

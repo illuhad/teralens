@@ -47,7 +47,7 @@ using particle_type =
 using vector_type =
   spatialcl::configuration<type_system>::vector_type;
 
-// Maximum number of lenses calculated with a brute force algorithm
+// Maximum number of lenses calculated with the brute force algorithm
 static constexpr std::size_t max_brute_force_lenses = 128;
 
 // Must be a power of two, and secondary_rays_per_cell^2
