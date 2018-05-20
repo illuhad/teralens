@@ -206,34 +206,34 @@ private:
       #if MULTIPOLE_ORDER >= 5
         r_pow2i_plus2_inv *= r2_inv;
 
+        // We already multiply r_pow2i_plus2_inv with the evaluation_coefficients instead of
+        // waiting until the last calculation as previously, because this makes the calculation more
+        // numerically stable. evaluation_coefficients and POLE32_MOMENT_X/Y are very large
+        // numbers and their multiplication can hence result in NaNs. This is prevented
+        // by making evaluation_coefficients small by multiplying with r_pow2i_plus2_inv (which
+        // is a very small number).
         evaluation_coefficients.x =
-              R_pow6.x       - 15 * R_pow4.x * R_pow2.y + 15 * R_pow2.x * R_pow4.y - R_pow6.y;
+          r_pow2i_plus2_inv * (    R_pow6.x       - 15 * R_pow4.x * R_pow2.y + 15 * R_pow2.x * R_pow4.y - R_pow6.y);
         evaluation_coefficients.y =
-          6 * R_pow5.x * R.y - 20 * R_pow3.x * R_pow3.y + 6  * R_pow5.y * R.x ;
+          r_pow2i_plus2_inv * (6 * R_pow5.x * R.y - 20 * R_pow3.x * R_pow3.y + 6  * R_pow5.y * R.x);
 
         m0c0 = evaluation_coefficients.x * POLE32_MOMENT_X(m);
         m1c1 = evaluation_coefficients.y * POLE32_MOMENT_Y(m);
         m1c0 = evaluation_coefficients.x * POLE32_MOMENT_Y(m);
         m0c1 = evaluation_coefficients.y * POLE32_MOMENT_X(m);
 
-        result.x -= (m0c0 + m1c1) * r_pow2i_plus2_inv;
-        result.y -= (m0c1 - m1c0) * r_pow2i_plus2_inv;
+        result.x -= (m0c0 + m1c1);
+        result.y -= (m0c1 - m1c0);
       #endif
 
         // 64-pole
       #if MULTIPOLE_ORDER >= 6
         r_pow2i_plus2_inv *= r2_inv;
 
-        // We already multiply r_pow2i_plus2_inv with the evaluation_coefficients instead of
-        // waiting until the last calculation as previously, because this makes the calculation more
-        // numerically stable. evaluation_coefficients and POLE64_MOMENT_X/Y are very large
-        // numbers and their multiplication can hence result in NaNs. This is prevented
-        // by making evaluation_coefficients small by multiplying with r_pow2i_plus2_inv (which
-        // is a very small number).
         evaluation_coefficients.x =
-          ( R_pow7.x + 35 * R_pow3.x * R_pow4.y - 21 * R_pow5.x * R_pow2.y - 7 * R_pow6.y * R.x) * r_pow2i_plus2_inv;
+          r_pow2i_plus2_inv * ( R_pow7.x + 35 * R_pow3.x * R_pow4.y - 21 * R_pow5.x * R_pow2.y - 7 * R_pow6.y * R.x);
         evaluation_coefficients.y =
-          (-R_pow7.y - 35 * R_pow4.x * R_pow3.y + 21 * R_pow2.x * R_pow5.y + 7 * R_pow6.x * R.y) * r_pow2i_plus2_inv;
+          r_pow2i_plus2_inv * (-R_pow7.y - 35 * R_pow4.x * R_pow3.y + 21 * R_pow2.x * R_pow5.y + 7 * R_pow6.x * R.y);
 
         m0c0 = evaluation_coefficients.x * POLE64_MOMENT_X(m);
         m1c1 = evaluation_coefficients.y * POLE64_MOMENT_Y(m);

@@ -51,7 +51,7 @@ public:
                  scalar source_plane_size,
                  std::size_t random_seed = 12345,
                  scalar overshooting_region_size = 6.0f,
-                 scalar lens_and_ray_region_size_ratio = 3.f)
+                 scalar lens_and_ray_region_size_ratio = 1.5f)
     : _convergence_c{convergence_stars},
       _convergence_s{convergence_smooth},
       _shear{shear},
