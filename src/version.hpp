@@ -25,9 +25,9 @@
 #include <string>
 
 #define TERALENS_VERSION_MAJOR 0
-#define TERALENS_VERSION_MINOR 9
-#define TERALENS_VERSION_PATCH 10
-#define TERALENS_VERSION_ANNOTATION "Beta"
+#define TERALENS_VERSION_MINOR 99
+#define TERALENS_VERSION_PATCH 0
+#define TERALENS_VERSION_ANNOTATION "Release Candidate"
 
 namespace teralens {
 

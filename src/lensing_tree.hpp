@@ -22,6 +22,8 @@
 #ifndef LENSING_TREE_HPP
 #define LENSING_TREE_HPP
 
+#include <cstdlib>
+
 #include <QCL/qcl.hpp>
 #include <QCL/qcl_module.hpp>
 #include <QCL/qcl_array.hpp>
@@ -69,22 +71,6 @@ public:
     assert(particles.size() > 2);
 
     this->init_multipoles();
-/*
-    std::vector<particle_type> host_particles;
-    particles.read(host_particles);
-    std::cout << "p_x=[";
-    for(const auto& p : host_particles)
-    {
-      std::cout << p.s[0] << "," << std::endl;
-    }
-    std::cout << "]";
-
-    std::cout << "p_y=[";
-    for(const auto& p : host_particles)
-    {
-      std::cout << p.s[1] << "," << std::endl;
-    }
-    std::cout << "]";*/
   }
 
 private:
@@ -92,6 +78,7 @@ private:
   // Must be a power of 2
   static constexpr std::size_t reduction_group_size = 256;
 
+  /// Initializes the tree nodes
   void init_multipoles()
   {
     assert(this->get_num_node_levels() > 0);
@@ -108,6 +95,8 @@ private:
                              "construction to finish.");
   }
 
+  /// Calculates monopole moments, center of masses, node widths
+  /// and node centers for all nodes
   void init_nodes_and_monopoles()
   { 
     // Temporary storage for the center coordinates of the nodes
@@ -155,20 +144,28 @@ private:
     qcl::check_cl_error(err,"Error while waiting for build_monopoles kernel to finish");
   }
 
+  /// Initializes the higher multipole moments (from quadrupole to 64-pole)
   void init_higher_multipoles()
   {
     const std::size_t num_summation_groups =
-            (this->get_num_particles()+reduction_group_size-1) / reduction_group_size;
+            this->get_effective_num_particles() / reduction_group_size;
 
     qcl::device_array<vector2> reduction_spill_buffer0{_ctx, num_summation_groups};
     qcl::device_array<vector8> reduction_spill_buffer1{_ctx, num_summation_groups};
+    cl_int err = this->init_reduction_spill_buffers(_ctx,
+                                                    cl::NDRange{num_summation_groups},
+                                                    cl::NDRange{256})(
+          reduction_spill_buffer0,
+          reduction_spill_buffer1,
+          num_summation_groups);
+    qcl::check_cl_error(err, "Could not enqueue init_reduction_spill_buffers kernel");
 
     std::size_t particles_per_node = 4;
     for(int level = this->get_num_node_levels()-2; level >= 0; --level)
     {
-      cl_int err = this->build_higher_multipole_moments(_ctx,
-                                                        this->get_num_particles(),
-                                                        cl::NDRange{reduction_group_size})(
+      err = this->build_higher_multipole_moments(_ctx,
+                                                 this->get_num_particles(),
+                                                 cl::NDRange{reduction_group_size})(
                this->get_sorted_particles(),
                this->get_node_values0(),
                this->get_node_values1(),
@@ -181,38 +178,48 @@ private:
 
       qcl::check_cl_error(err, "Could not enqueue build_higher_multipole_moments kernel");
 
-      std::size_t summation_group_size = particles_per_node;
-      while(summation_group_size > reduction_group_size)
-      {
-        std::size_t num_summation_elements = (this->get_num_particles() + summation_group_size - 1)
-                                           / summation_group_size;
+      const std::size_t target_num_results =
+          this->get_effective_num_particles() / particles_per_node;
 
-        std::size_t effective_summation_size = summation_group_size;
-        if(summation_group_size > reduction_group_size)
-            effective_summation_size = reduction_group_size;
+      std::size_t current_num_results =
+          this->get_effective_num_particles() / reduction_group_size;
+
+      // As long as more reductions need to be done
+      while(current_num_results > target_num_results)
+      {
+        const std::size_t summation_group_size =
+            current_num_results / target_num_results;
+
+        const std::size_t effective_summation_size =
+            std::min(summation_group_size, static_cast<std::size_t>(reduction_group_size));
+
+        bool is_final_summation = summation_group_size <= reduction_group_size;
 
         err = this->sum_reduction_spill_buffer(_ctx,
-                                               num_summation_elements,
+                                               current_num_results,
                                                reduction_group_size)(
                  reduction_spill_buffer0,
                  reduction_spill_buffer1,
                  static_cast<cl_uint>(effective_summation_size),
-                 static_cast<cl_int> (summation_group_size <= reduction_group_size),
+                 static_cast<cl_int> (is_final_summation),
                  static_cast<cl_uint>(level),
                  static_cast<cl_uint>(this->get_effective_num_levels()),
                  static_cast<cl_ulong>(this->get_effective_num_particles()),
-                 static_cast<cl_ulong>(num_summation_elements),
+                 static_cast<cl_ulong>(current_num_results),
                  this->get_node_values0(),
                  this->get_node_values1());
 
         qcl::check_cl_error(err, "Could not enqueue sum_reduction_spill_buffer kernel");
 
-        summation_group_size /= reduction_group_size;
+        current_num_results /= effective_summation_size;
+
+        if(current_num_results == 0)
+          current_num_results = 1;
       }
 
       particles_per_node *= 2;
     }
-    /*
+
     std::vector<node_type0> n0(this->get_effective_num_particles()-1);
     std::vector<node_type1> n1(this->get_effective_num_particles()-1);
     _ctx->memcpy_d2h(n0.data(), this->get_node_values0(), this->get_effective_num_particles()-1);
@@ -229,13 +236,7 @@ private:
         ++lvl;
       }
 
-      std::cout << "Level " << lvl << ", local node id " << i-lvl_begin <<": ";
-      for(std::size_t j = 0; j < 8; ++j)
-        std::cout << n0[i].s[j] << "\t";
-      for(std::size_t j = 0; j < 8; ++j)
-        std::cout << n1[i].s[j] << "\t";
-      std::cout << std::endl;
-    }*/
+    }
   }
 
 
@@ -245,6 +246,7 @@ private:
   QCL_ENTRYPOINT(assign_node_centers_to_node_extents)
   QCL_ENTRYPOINT(build_higher_multipole_moments)
   QCL_ENTRYPOINT(sum_reduction_spill_buffer)
+  QCL_ENTRYPOINT(init_reduction_spill_buffers)
   QCL_MAKE_SOURCE(
     QCL_INCLUDE_MODULE(spatialcl::configuration<type_system>)
     QCL_INCLUDE_MODULE(spatialcl::tree_configuration<basic_lensing_tree>)
@@ -253,6 +255,17 @@ private:
     QCL_IMPORT_CONSTANT(reduction_group_size)
     QCL_RAW(
 
+        __kernel void init_reduction_spill_buffers(__global vector_type* spill_buffer0,
+                                                   __global node_type1* spill_buffer1,
+                                                   ulong spill_buffer_size)
+        {
+          size_t tid = get_global_id(0);
+          if(tid < spill_buffer_size)
+          {
+            spill_buffer0[tid] = (vector_type)0.0f;
+            spill_buffer1[tid] = (node_type1)0.0f;
+          }
+        }
 
         __kernel void build_ll_nodes(__global node_type0* nodes0,
                                      __global node_type1* nodes1,
@@ -412,11 +425,11 @@ private:
           {
             if(subgroup_lid < i)
             {
-              subgroup_mem_nodes0[subgroup_lid] = convert_float2(convert_double2(subgroup_mem_nodes0[subgroup_lid  ]) +
-                                                                 convert_double2(subgroup_mem_nodes0[subgroup_lid+i]));
+              subgroup_mem_nodes0[subgroup_lid] = subgroup_mem_nodes0[subgroup_lid  ] +
+                                                  subgroup_mem_nodes0[subgroup_lid+i];
 
-              subgroup_mem_nodes1[subgroup_lid] = convert_float8(convert_double8(subgroup_mem_nodes1[subgroup_lid  ]) +
-                                                                 convert_double8(subgroup_mem_nodes1[subgroup_lid+i]));
+              subgroup_mem_nodes1[subgroup_lid] = subgroup_mem_nodes1[subgroup_lid  ] +
+                                                  subgroup_mem_nodes1[subgroup_lid+i];
             }
             // This can be optimized for small summations
             barrier(CLK_LOCAL_MEM_FENCE);
@@ -542,12 +555,17 @@ private:
                                                  __global node_type0* nodes0,
                                                  __global node_type1* nodes1)
         {
+          // Create local memory buffers for a fast on-chip summation
           __local vector_type nodes0_local_mem [reduction_group_size];
           __local node_type1  nodes1_local_mem [reduction_group_size];
 
+          // Obtain thread ids
           const size_t tid = get_global_id(0);
           const size_t lid = get_local_id(0);
 
+          // Load data collectively into local memory. If more threads
+          // then needed are available, these set their entries to 0
+          // (which will then have no effect on the summation)
           if(tid < num_summation_elements)
           {
             nodes0_local_mem[lid] = reduction_spill_buffer0[tid];
@@ -560,10 +578,18 @@ private:
           }
           barrier (CLK_LOCAL_MEM_FENCE);
 
+          // We further divide the work group into subgroups in order
+          // to process as many summation groups as possible
+
+          // subgroup_id is the id of the sumation group within the current
+          // work group
           const uint subgroup_id = lid / summation_group_size;
+          // subgroup_lid is the id of the thread within its subgroup/summation group
           const uint subgroup_lid = lid - subgroup_id * summation_group_size;
+          // num_subgroups is the number of subgroups in the work group.
           const uint num_subgroups = get_local_size(0) / summation_group_size;
 
+          // Perform parallel reduction for each subgroup in local memory
           sum_multipoles(nodes0_local_mem + subgroup_id * summation_group_size,
                          nodes1_local_mem + subgroup_id * summation_group_size,
                          subgroup_lid,
@@ -581,9 +607,8 @@ private:
                                   + subgroup_id;
 
               QUADRUPOLE_MOMENT(nodes0[node_id])
-                              = nodes0_local_mem[lid * summation_group_size];
-              nodes1[node_id] = nodes1_local_mem[lid * summation_group_size];
-
+                              = nodes0_local_mem[lid];
+              nodes1[node_id] = nodes1_local_mem[lid];
             }
           }
           else if(lid == 0)
@@ -592,7 +617,6 @@ private:
             reduction_spill_buffer0[get_group_id(0)] = nodes0_local_mem[0];
             reduction_spill_buffer1[get_group_id(0)] = nodes1_local_mem[0];
           }
-
         }
     )
   )
