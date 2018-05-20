@@ -314,4 +314,4 @@ private:
 }
 }
 
-#endif FITS_HPP
+#endif // FITS_HPP

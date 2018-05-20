@@ -26,7 +26,7 @@
 
 #define TERALENS_VERSION_MAJOR 0
 #define TERALENS_VERSION_MINOR 99
-#define TERALENS_VERSION_PATCH 0
+#define TERALENS_VERSION_PATCH 2
 #define TERALENS_VERSION_ANNOTATION "Release Candidate"
 
 namespace teralens {

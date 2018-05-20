@@ -35,7 +35,7 @@
 constexpr std::size_t num_samples = 100;
 constexpr std::size_t seed = 140;
 constexpr std::size_t resolution = 1024;
-constexpr teralens::scalar opening_angle = 0.4f;
+constexpr teralens::scalar opening_angle = 0.5f;
 constexpr teralens::scalar primary_rays_ppx = 0.1f;
 
 int main()

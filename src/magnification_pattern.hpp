@@ -50,7 +50,7 @@ public:
                  scalar shear,
                  scalar source_plane_size,
                  std::size_t random_seed = 12345,
-                 scalar overshooting_region_size = 6.0f,
+                 scalar overshooting_region_size = 0.0f,
                  scalar lens_and_ray_region_size_ratio = 3.f)
     : _convergence_c{convergence_stars},
       _convergence_s{convergence_smooth},
@@ -91,8 +91,8 @@ public:
     scalar gamma = this->get_shear();
 
     vector2 result;
-    result.s[0] = std::abs((_mag_pattern_size + _overshooting) / (1.0f - gamma - kappa));
-    result.s[1] = std::abs((_mag_pattern_size + _overshooting) / (1.0f + gamma - kappa));
+    result.s[0] = std::abs((_mag_pattern_size + _overshooting)/ (1.0f - gamma - kappa));
+    result.s[1] = std::abs((_mag_pattern_size + _overshooting)/ (1.0f + gamma - kappa));
 
     return result;
   }
@@ -187,7 +187,8 @@ public:
 
   qcl::device_array<int> run(std::size_t resolution,
                              scalar num_primary_rays_ppx,
-                             scalar tree_opening_angle = 0.4)
+                             scalar tree_opening_angle = 0.4,
+                             std::size_t brute_force_threshold = max_brute_force_lenses)
   {
     // Calculate lower-left corner of the shooting region
     vector2 shooting_region_min_corner = _system.get_shooting_region_extent();
@@ -199,7 +200,7 @@ public:
     scalar px_size_y = _system.get_shooting_region_extent().s[1] / resolution;
     scalar ray_distance = std::sqrt(px_size_x * px_size_y / num_primary_rays_ppx);
 
-    bool use_tree = _system.get_particles().size() > max_brute_force_lenses;
+    bool use_tree = _system.get_particles().size() > brute_force_threshold;
 
     if(!use_tree)
     {

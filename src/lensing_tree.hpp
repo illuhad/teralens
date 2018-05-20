@@ -23,6 +23,7 @@
 #define LENSING_TREE_HPP
 
 #include <cstdlib>
+#include <cassert>
 
 #include <QCL/qcl.hpp>
 #include <QCL/qcl_module.hpp>
@@ -152,20 +153,18 @@ private:
 
     qcl::device_array<vector2> reduction_spill_buffer0{_ctx, num_summation_groups};
     qcl::device_array<vector8> reduction_spill_buffer1{_ctx, num_summation_groups};
-    cl_int err = this->init_reduction_spill_buffers(_ctx,
-                                                    cl::NDRange{num_summation_groups},
-                                                    cl::NDRange{256})(
-          reduction_spill_buffer0,
-          reduction_spill_buffer1,
-          num_summation_groups);
-    qcl::check_cl_error(err, "Could not enqueue init_reduction_spill_buffers kernel");
+
 
     std::size_t particles_per_node = 4;
     for(int level = this->get_num_node_levels()-2; level >= 0; --level)
     {
-      err = this->build_higher_multipole_moments(_ctx,
-                                                 this->get_num_particles(),
-                                                 cl::NDRange{reduction_group_size})(
+      this->reset_reduction_spill_buffers(reduction_spill_buffer0,
+                                          reduction_spill_buffer1,
+                                          num_summation_groups);
+
+      cl_int err = this->build_higher_multipole_moments(_ctx,
+                                                        this->get_num_particles(),
+                                                        cl::NDRange{reduction_group_size})(
                this->get_sorted_particles(),
                this->get_node_values0(),
                this->get_node_values1(),
@@ -189,6 +188,10 @@ private:
       {
         const std::size_t summation_group_size =
             current_num_results / target_num_results;
+
+        assert(current_num_results % 2 == 0);
+        assert(target_num_results % 2 == 0 || target_num_results == 1);
+        assert(summation_group_size % 2 == 0);
 
         const std::size_t effective_summation_size =
             std::min(summation_group_size, static_cast<std::size_t>(reduction_group_size));
@@ -219,26 +222,20 @@ private:
 
       particles_per_node *= 2;
     }
-
-    std::vector<node_type0> n0(this->get_effective_num_particles()-1);
-    std::vector<node_type1> n1(this->get_effective_num_particles()-1);
-    _ctx->memcpy_d2h(n0.data(), this->get_node_values0(), this->get_effective_num_particles()-1);
-    _ctx->memcpy_d2h(n1.data(), this->get_node_values1(), this->get_effective_num_particles()-1);
-    std::size_t nodes_in_lvl = this->get_effective_num_particles()/2;
-    std::size_t lvl = 1;
-    std::size_t lvl_begin = 0;
-    for(std::size_t i = 0; i < this->get_effective_num_particles()-1; ++i)
-    {
-      if(i == lvl_begin + nodes_in_lvl)
-      {
-        lvl_begin += nodes_in_lvl;
-        nodes_in_lvl /= 2;
-        ++lvl;
-      }
-
-    }
   }
 
+  void reset_reduction_spill_buffers(const qcl::device_array<vector2>& spill_buffer0,
+                                     const qcl::device_array<vector8>& spill_buffer1,
+                                     std::size_t spill_buffer_size) const
+  {
+    cl_int err = this->init_reduction_spill_buffers(_ctx,
+                                                    cl::NDRange{spill_buffer_size},
+                                                    cl::NDRange{256})(
+          spill_buffer0,
+          spill_buffer1,
+          spill_buffer_size);
+    qcl::check_cl_error(err, "Could not enqueue init_reduction_spill_buffers kernel");
+  }
 
 
   QCL_ENTRYPOINT(build_ll_nodes)

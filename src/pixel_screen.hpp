@@ -42,9 +42,11 @@ public:
     : _ctx{ctx},
       _num_pix_x{num_pix_x},
       _num_pix_y{num_pix_y},
-      _pixel_screen{ctx, num_pix_x * num_pix_y},
+
       _center{pixel_screen_center},
-      _extent{pixel_screen_extent}
+      _extent{pixel_screen_extent},
+
+      _pixel_screen{ctx, num_pix_x * num_pix_y}
   {
     cl_int err = this->init_pixel_screen(ctx,
                                          cl::NDRange{num_pix_x*num_pix_y},

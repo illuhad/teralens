@@ -20,6 +20,7 @@
  */
 
 #include <iostream>
+#include <limits>
 
 #include <QCL/qcl.hpp>
 #include <QCL/qcl_array.hpp>
@@ -33,6 +34,7 @@
 #include "version.hpp"
 
 namespace po = boost::program_options;
+
 
 int main(int argc, char** argv)
 {
@@ -53,6 +55,7 @@ int main(int argc, char** argv)
     std::size_t resolution;
 
     std::string output_filename;
+    std::string mode;
 
     std::string rays_ppx_desc =
         "Number of primary rays traced for each pixel. "
@@ -77,7 +80,7 @@ int main(int argc, char** argv)
          "The physical size of the magnification pattern in Einstein radii")
         ("seed", po::value<std::size_t>(&random_seed)->default_value(600001),
          "Random seed")
-        ("opening_angle,a", po::value<teralens::scalar>(&tree_opening_angle)->default_value(0.4f),
+        ("opening_angle,a", po::value<teralens::scalar>(&tree_opening_angle)->default_value(0.5f),
          "Opening angle of Barnes-Hut tree")
         ("primary_rays_ppx,p", po::value<teralens::scalar>(&primary_rays_ppx)->default_value(0.1f),
          rays_ppx_desc.c_str())
@@ -85,6 +88,8 @@ int main(int argc, char** argv)
          "Number of pixels of the magnification pattern in x and y direction")
         ("output,o", po::value<std::string>(&output_filename)->default_value("teralens.fits"),
          "Filename of output fits file")
+        ("mode,m", po::value<std::string>(&mode)->default_value("auto"),
+         "backend selection mode. Available options: tree, brute_force, auto")
         ;
 
     po::variables_map vm;
@@ -104,6 +109,16 @@ int main(int argc, char** argv)
       throw std::invalid_argument{"Tree opening angle must be positive"};
     if(resolution == 0)
       throw std::invalid_argument{"Resolution must be greater than 0"};
+
+    std::size_t brute_force_threshold = 0;
+    if(mode == "auto")
+      brute_force_threshold = teralens::max_brute_force_lenses;
+    else if(mode == "tree")
+      brute_force_threshold = 0;
+    else if(mode == "brute_force")
+      brute_force_threshold = std::numeric_limits<std::size_t>::max();
+    else
+      throw std::invalid_argument{"Unkown backend mode: "+mode};
 
 
     qcl::environment env;
@@ -143,7 +158,7 @@ int main(int argc, char** argv)
 
     teralens::magnification_pattern_generator generator{ctx, system, std::cout};
     qcl::device_array<int> pixel_screen =
-        generator.run(resolution, primary_rays_ppx, tree_opening_angle);
+        generator.run(resolution, primary_rays_ppx, tree_opening_angle, brute_force_threshold);
 
     std::cout << "Performance: "
               << 1.0/generator.get_last_runtime() << " patterns/s, "
