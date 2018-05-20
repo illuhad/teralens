@@ -473,6 +473,7 @@ private:
 
             QUADRUPOLE_MOMENT(nodes0[effective_node_idx]) = QUADRUPOLE_MOMENT(node0);
             nodes1[effective_node_idx] = node1;
+
             //QUADRUPOLE_MOMENT(nodes0[effective_node_idx]) = (vector_type)0.0f;
             //nodes1[effective_node_idx] = (node_type1)0.0f;
           }*/

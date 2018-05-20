@@ -537,9 +537,10 @@ private:
           const uint rid_x = ray_id % num_rays_x;
           const uint rid_y = ray_id / num_rays_x;
 
-          out[tid] = screen_min_corner
+          const vector2 pos = screen_min_corner
                    + (vector2)(rid_x, rid_y) * (vector2)(ray_separation, ray_separation);
 
+          out[tid] = pos;
         }
       }
     )

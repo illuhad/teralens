@@ -50,7 +50,7 @@ public:
                  scalar shear,
                  scalar source_plane_size,
                  std::size_t random_seed = 12345,
-                 scalar overshooting_region_size = 0.0f,
+                 scalar overshooting_region_size = 6.0f,
                  scalar lens_and_ray_region_size_ratio = 3.f)
     : _convergence_c{convergence_stars},
       _convergence_s{convergence_smooth},
@@ -91,8 +91,8 @@ public:
     scalar gamma = this->get_shear();
 
     vector2 result;
-    result.s[0] = std::abs((_mag_pattern_size + _overshooting)/ (1.0f - gamma - kappa));
-    result.s[1] = std::abs((_mag_pattern_size + _overshooting)/ (1.0f + gamma - kappa));
+    result.s[0] = (_mag_pattern_size + _overshooting)/ std::abs(1.0f - gamma - kappa);
+    result.s[1] = (_mag_pattern_size + _overshooting)/ std::abs(1.0f + gamma - kappa);
 
     return result;
   }
@@ -196,8 +196,10 @@ public:
       shooting_region_min_corner.s[i] *= -0.5f;
 
     // Calculate distance between primary rays
-    scalar px_size_x = _system.get_shooting_region_extent().s[0] / resolution;
-    scalar px_size_y = _system.get_shooting_region_extent().s[1] / resolution;
+    double px_size_x =
+        static_cast<double>(_system.get_shooting_region_extent().s[0]) / resolution;
+    double px_size_y =
+        static_cast<double>(_system.get_shooting_region_extent().s[1]) / resolution;
     scalar ray_distance = std::sqrt(px_size_x * px_size_y / num_primary_rays_ppx);
 
     bool use_tree = _system.get_particles().size() > brute_force_threshold;
@@ -209,9 +211,11 @@ public:
     }
 
     std::size_t num_rays_x =
-        static_cast<std::size_t>(_system.get_shooting_region_extent().s[0] / ray_distance);
+        static_cast<std::size_t>(
+          std::round(_system.get_shooting_region_extent().s[0] / ray_distance));
     std::size_t num_rays_y =
-        static_cast<std::size_t>(_system.get_shooting_region_extent().s[1] / ray_distance);
+        static_cast<std::size_t>(
+          std::round(_system.get_shooting_region_extent().s[1] / ray_distance));
 
     _num_traced_rays = num_rays_x * num_rays_y;
     if(use_tree)

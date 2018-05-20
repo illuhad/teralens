@@ -140,9 +140,10 @@ private:
         const vector_type R = position - CENTER_OF_MASS(m);
 
         const scalar r2 = dot(R, R);
+        const scalar r2_inv = 1.f / r2;
 
         // monopole
-        result = -MASS(m) * R / r2;
+        result = -MASS(m) * R * r2_inv;
 
         // Quadrupole (Dipole vanishes always)
       #if MULTIPOLE_ORDER >= 2
@@ -153,7 +154,7 @@ private:
         const vector_type R_pow6 = R_pow3 * R_pow3;
         const vector_type R_pow7 = R_pow3 * R_pow4;
 
-        scalar r_pow2i_plus2 = r2 * r2 * r2;
+        scalar r_pow2i_plus2_inv = r2_inv * r2_inv * r2_inv;
         vector_type evaluation_coefficients;
         scalar m0c0, m1c1, m1c0, m0c1;
 
@@ -165,13 +166,13 @@ private:
         m1c0 = evaluation_coefficients.x * QUADRUPOLE_MOMENT_Y(m);
         m0c1 = evaluation_coefficients.y * QUADRUPOLE_MOMENT_X(m);
 
-        result.x -= native_divide(m0c0 + m1c1, r_pow2i_plus2);
-        result.y -= native_divide(m0c1 - m1c0, r_pow2i_plus2);
+        result.x -= (m0c0 + m1c1) * r_pow2i_plus2_inv;
+        result.y -= (m0c1 - m1c0) * r_pow2i_plus2_inv;
       #endif
 
         // Octopole
       #if MULTIPOLE_ORDER >= 3
-        r_pow2i_plus2 *= r2;
+        r_pow2i_plus2_inv *= r2_inv;
 
         evaluation_coefficients.x =     R_pow4.x       - 6 * R_pow2.x * R_pow2.y + R_pow4.y;
         evaluation_coefficients.y = 4 * R_pow3.x * R.y - 4 * R.x      * R_pow3.y;
@@ -181,13 +182,13 @@ private:
         m1c0 = evaluation_coefficients.x * OCTOPOLE_MOMENT_Y(m);
         m0c1 = evaluation_coefficients.y * OCTOPOLE_MOMENT_X(m);
 
-        result.x -= native_divide(m0c0 + m1c1, r_pow2i_plus2);
-        result.y -= native_divide(m0c1 - m1c0, r_pow2i_plus2);
+        result.x -= (m0c0 + m1c1) * r_pow2i_plus2_inv;
+        result.y -= (m0c1 - m1c0) * r_pow2i_plus2_inv;
       #endif
 
         // 16-pole
       #if MULTIPOLE_ORDER >= 4
-        r_pow2i_plus2 *= r2;
+        r_pow2i_plus2_inv *= r2_inv;
 
         evaluation_coefficients.x =     R_pow5.x       - 10 * R_pow3.x * R_pow2.y + 5 * R.x * R_pow4.y;
         evaluation_coefficients.y = 5 * R_pow4.x * R.y - 10 * R_pow2.x * R_pow3.y +           R_pow5.y;
@@ -197,13 +198,13 @@ private:
         m1c0 = evaluation_coefficients.x * POLE16_MOMENT_Y(m);
         m0c1 = evaluation_coefficients.y * POLE16_MOMENT_X(m);
 
-        result.x -= native_divide(m0c0 + m1c1, r_pow2i_plus2);
-        result.y -= native_divide(m0c1 - m1c0, r_pow2i_plus2);
+        result.x -= (m0c0 + m1c1) * r_pow2i_plus2_inv;
+        result.y -= (m0c1 - m1c0) * r_pow2i_plus2_inv;
       #endif
 
         // 32-pole
       #if MULTIPOLE_ORDER >= 5
-        r_pow2i_plus2 *= r2;
+        r_pow2i_plus2_inv *= r2_inv;
 
         evaluation_coefficients.x =
               R_pow6.x       - 15 * R_pow4.x * R_pow2.y + 15 * R_pow2.x * R_pow4.y - R_pow6.y;
@@ -215,26 +216,32 @@ private:
         m1c0 = evaluation_coefficients.x * POLE32_MOMENT_Y(m);
         m0c1 = evaluation_coefficients.y * POLE32_MOMENT_X(m);
 
-        result.x -= native_divide(m0c0 + m1c1, r_pow2i_plus2);
-        result.y -= native_divide(m0c1 - m1c0, r_pow2i_plus2);
+        result.x -= (m0c0 + m1c1) * r_pow2i_plus2_inv;
+        result.y -= (m0c1 - m1c0) * r_pow2i_plus2_inv;
       #endif
 
         // 64-pole
       #if MULTIPOLE_ORDER >= 6
-        r_pow2i_plus2 *= r2;
+        r_pow2i_plus2_inv *= r2_inv;
 
+        // We already multiply r_pow2i_plus2_inv with the evaluation_coefficients instead of
+        // waiting until the last calculation as previously, because this makes the calculation more
+        // numerically stable. evaluation_coefficients and POLE64_MOMENT_X/Y are very large
+        // numbers and their multiplication can hence result in NaNs. This is prevented
+        // by making evaluation_coefficients small by multiplying with r_pow2i_plus2_inv (which
+        // is a very small number).
         evaluation_coefficients.x =
-              R_pow7.x + 35 * R_pow3.x * R_pow4.y - 21 * R_pow5.x * R_pow2.y - 7 * R_pow6.y * R.x;
+          ( R_pow7.x + 35 * R_pow3.x * R_pow4.y - 21 * R_pow5.x * R_pow2.y - 7 * R_pow6.y * R.x) * r_pow2i_plus2_inv;
         evaluation_coefficients.y =
-            - R_pow7.y - 35 * R_pow4.x * R_pow3.y + 21 * R_pow2.x * R_pow5.y + 7 * R_pow6.x * R.y;
+          (-R_pow7.y - 35 * R_pow4.x * R_pow3.y + 21 * R_pow2.x * R_pow5.y + 7 * R_pow6.x * R.y) * r_pow2i_plus2_inv;
 
         m0c0 = evaluation_coefficients.x * POLE64_MOMENT_X(m);
         m1c1 = evaluation_coefficients.y * POLE64_MOMENT_Y(m);
         m1c0 = evaluation_coefficients.x * POLE64_MOMENT_Y(m);
         m0c1 = evaluation_coefficients.y * POLE64_MOMENT_X(m);
 
-        result.x -= native_divide(m0c0 + m1c1, r_pow2i_plus2);
-        result.y -= native_divide(m0c1 - m1c0, r_pow2i_plus2);
+        result.x -= (m0c0 + m1c1);
+        result.y -= (m0c1 - m1c0);
       #endif
 
         return result;
