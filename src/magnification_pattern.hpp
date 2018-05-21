@@ -44,6 +44,7 @@ namespace teralens {
 class lensing_system
 {
 public:
+
   lensing_system(const qcl::device_context_ptr& ctx,
                  scalar mean_particle_mass,
                  scalar convergence_stars,
@@ -51,13 +52,14 @@ public:
                  scalar shear,
                  scalar source_plane_size,
                  std::size_t random_seed = 12345,
-                 scalar overshooting_region_size = 6.0f,
+                 scalar overshooting_factor = 1.f,
                  scalar lens_and_ray_region_size_ratio = 1.5f)
     : _convergence_c{convergence_stars},
       _convergence_s{convergence_smooth},
       _shear{shear},
       _mag_pattern_size{source_plane_size},
-      _overshooting{overshooting_region_size},
+      _fixed_overshooting{6.f},
+      _overshooting_factor{overshooting_factor},
       _lens_distribution_size_factor{lens_and_ray_region_size_ratio}
   {
     assert(_mag_pattern_size > 0.0f);
@@ -71,12 +73,13 @@ public:
                  scalar convergence_smooth,
                  scalar shear,
                  scalar source_plane_size,
-                 scalar overshooting_region_size = 6.0f,
+                 scalar overshooting_factor = 1.f,
                  scalar lens_and_ray_region_size_ratio = 1.5f)
     : _convergence_s{convergence_smooth},
       _shear{shear},
       _mag_pattern_size{source_plane_size},
-      _overshooting{overshooting_region_size},
+      _fixed_overshooting{6.f},
+      _overshooting_factor{overshooting_factor},
       _lens_distribution_size_factor{lens_and_ray_region_size_ratio}
   {
     this->load_star_dump(ctx, star_list_filename);
@@ -108,8 +111,10 @@ public:
     scalar gamma = this->get_shear();
 
     vector2 result;
-    result.s[0] = (_mag_pattern_size + _overshooting)/ std::abs(1.0f - gamma - kappa);
-    result.s[1] = (_mag_pattern_size + _overshooting)/ std::abs(1.0f + gamma - kappa);
+    result.s[0] = (_overshooting_factor*_mag_pattern_size + _fixed_overshooting)
+        / std::abs(1.0f - gamma - kappa);
+    result.s[1] = (_overshooting_factor*_mag_pattern_size + _fixed_overshooting)
+        / std::abs(1.0f + gamma - kappa);
 
     return result;
   }
@@ -149,7 +154,8 @@ private:
   scalar _convergence_s;
   scalar _shear;
   scalar _mag_pattern_size;
-  scalar _overshooting;
+  scalar _fixed_overshooting;
+  scalar _overshooting_factor;
   scalar _lens_distribution_size_factor;
   qcl::device_array<particle_type> _stars;
   std::vector<particle_type> _host_stars;

@@ -52,6 +52,7 @@ int main(int argc, char** argv)
     std::size_t random_seed;
     teralens::scalar tree_opening_angle;
     teralens::scalar primary_rays_ppx;
+    teralens::scalar ray_sampling_region_scale;
 
     std::size_t resolution;
 
@@ -99,6 +100,8 @@ int main(int argc, char** argv)
         ("read_star_dump", po::value<std::string>(&star_dump_input_filename),
          "If set, loads the stars from the specified file. The kappa_star argument is ignored in this "
          "case. Centers the magnification pattern on the center of mass of the stars.")
+        ("ray_sampling_region_scale", po::value<teralens::scalar>(&ray_sampling_region_scale)->default_value(1.f),
+         "Scaling factor for the ray sampling region")
         ;
 
     po::variables_map vm;
@@ -163,7 +166,8 @@ int main(int argc, char** argv)
           star_dump_input_filename,
           smooth_convergence,
           shear,
-          physical_source_plane_size
+          physical_source_plane_size,
+          ray_sampling_region_scale
         }
       };
     }
@@ -177,7 +181,8 @@ int main(int argc, char** argv)
           smooth_convergence,
           shear,
           physical_source_plane_size, // source plane/magnification pattern size
-          random_seed
+          random_seed,
+          ray_sampling_region_scale
         }
       };
     }
