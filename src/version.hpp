@@ -24,10 +24,10 @@
 
 #include <string>
 
-#define TERALENS_VERSION_MAJOR 0
-#define TERALENS_VERSION_MINOR 99
-#define TERALENS_VERSION_PATCH 3
-#define TERALENS_VERSION_ANNOTATION "Release Candidate 2"
+#define TERALENS_VERSION_MAJOR 1
+#define TERALENS_VERSION_MINOR 0
+#define TERALENS_VERSION_PATCH 0
+#define TERALENS_VERSION_ANNOTATION "Release"
 
 namespace teralens {
 

@@ -27,6 +27,7 @@
 #include <vector>
 #include <cmath>
 #include <random>
+#include <fstream>
 
 #include <QCL/qcl_array.hpp>
 #include <SpatialCL/query.hpp>
@@ -63,6 +64,22 @@ public:
     assert(lens_and_ray_region_size_ratio > 1.0f);
 
     _stars = this->sample_particles(ctx, mean_particle_mass, random_seed);
+  }
+
+  lensing_system(const qcl::device_context_ptr& ctx,
+                 const std::string& star_list_filename,
+                 scalar convergence_smooth,
+                 scalar shear,
+                 scalar source_plane_size,
+                 scalar overshooting_region_size = 6.0f,
+                 scalar lens_and_ray_region_size_ratio = 1.5f)
+    : _convergence_s{convergence_smooth},
+      _shear{shear},
+      _mag_pattern_size{source_plane_size},
+      _overshooting{overshooting_region_size},
+      _lens_distribution_size_factor{lens_and_ray_region_size_ratio}
+  {
+    this->load_star_dump(ctx, star_list_filename);
   }
 
   scalar get_compact_convergence() const
@@ -102,12 +119,32 @@ public:
     return _stars;
   }
 
+  const std::vector<particle_type>& get_host_particles() const
+  {
+    return _host_stars;
+  }
+
   scalar get_source_plane_size() const
   {
     return _mag_pattern_size;
   }
 
+  void write_star_dump(const std::string& filename) const
+  {
+    std::ofstream dump_file(filename.c_str());
+    if(!dump_file.is_open())
+      throw std::runtime_error{"Could not open file for writing: "+filename};
+
+    for(const auto& particle : _host_stars)
+    {
+      dump_file << particle.s[0] << " "
+                << particle.s[1] << " "
+                << particle.s[2] << std::endl;
+    }
+  }
+
 private:
+
   scalar _convergence_c;
   scalar _convergence_s;
   scalar _shear;
@@ -115,10 +152,63 @@ private:
   scalar _overshooting;
   scalar _lens_distribution_size_factor;
   qcl::device_array<particle_type> _stars;
+  std::vector<particle_type> _host_stars;
+
+  void load_star_dump(const qcl::device_context_ptr& ctx,
+                      const std::string& filename)
+  {
+    std::ifstream dump_file(filename.c_str());
+    if(!dump_file.is_open())
+      throw std::runtime_error{"Could not open file for reading: "+filename};
+
+    _host_stars.resize(0);
+
+    vector2 center_of_mass{0.0f, 0.0f};
+    scalar total_mass = 0.0f;
+
+    while(dump_file.good())
+    {
+      scalar x,y,mass;
+      dump_file >> x;
+      dump_file >> y;
+      dump_file >> mass;
+
+      if(dump_file.good())
+      {
+        particle_type p;
+        p.s[0] = x;
+        p.s[1] = y;
+        p.s[2] = mass;
+
+        center_of_mass.s[0] += mass * x;
+        center_of_mass.s[1] += mass * y;
+        total_mass += mass;
+
+        _host_stars.push_back(p);
+      }
+    }
+
+    center_of_mass.s[0] /= total_mass;
+    center_of_mass.s[1] /= total_mass;
+
+    scalar max_radius = 0.0f;
+    for(auto& p : _host_stars)
+    {
+      for(std::size_t i = 0; i < 2; ++i)
+        p.s[i] -= center_of_mass.s[i];
+      scalar r2 = p.s[0]*p.s[0]+p.s[1]*p.s[1];
+      if(r2 > max_radius)
+        max_radius = r2;
+    }
+    max_radius = std::sqrt(max_radius);
+
+    this->_convergence_c = total_mass / (max_radius * max_radius);
+    this->_stars = qcl::device_array<particle_type>{ctx, _host_stars};
+  }
 
   qcl::device_array<particle_type> sample_particles(const qcl::device_context_ptr& ctx,
                                                     scalar mean_particle_mass,
-                                                    std::size_t seed) const
+                                                    std::size_t seed)
   {
     vector2 shooting_region = this->get_shooting_region_extent();
     scalar lens_radius =
@@ -130,7 +220,7 @@ private:
         static_cast<std::size_t>(
           std::round(_convergence_c * lens_radius * lens_radius / mean_particle_mass));
 
-    std::vector<particle_type> particles(num_particles);
+    this->_host_stars = std::vector<particle_type>(num_particles);
 
     // ToDo: Sample particles on the GPU
     std::mt19937 random_engine(seed);
@@ -148,10 +238,10 @@ private:
         p.s[1] = random_distribution(random_engine);
       } while(p.s[0]*p.s[0] + p.s[1]*p.s[1] > lens_radius2);
 
-      particles[i] = p;
+      _host_stars[i] = p;
     }
 
-    return qcl::device_array<particle_type>{ctx, particles};
+    return qcl::device_array<particle_type>{ctx, _host_stars};
   }
 };
 

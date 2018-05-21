@@ -21,6 +21,7 @@
 
 #include <iostream>
 #include <limits>
+#include <memory>
 
 #include <QCL/qcl.hpp>
 #include <QCL/qcl_array.hpp>
@@ -56,6 +57,8 @@ int main(int argc, char** argv)
 
     std::string output_filename;
     std::string mode;
+    std::string star_dump_output_filename;
+    std::string star_dump_input_filename;
 
     std::string rays_ppx_desc =
         "Number of primary rays traced for each pixel. "
@@ -90,6 +93,12 @@ int main(int argc, char** argv)
          "Filename of output fits file")
         ("mode,m", po::value<std::string>(&mode)->default_value("auto"),
          "backend selection mode. Available options: tree, brute_force, auto")
+        ("write_star_dump", po::value<std::string>(&star_dump_output_filename),
+         "If set, the list of sampled stars will be saved to this file, with each row containing x coordinate, "
+         "y coordinate, and mass.")
+        ("read_star_dump", po::value<std::string>(&star_dump_input_filename),
+         "If set, loads the stars from the specified file. The kappa_star argument is ignored in this "
+         "case. Centers the magnification pattern on the center of mass of the stars.")
         ;
 
     po::variables_map vm;
@@ -143,20 +152,46 @@ int main(int argc, char** argv)
               << ", OpenCL version: " << ctx->get_device_cl_version()
               << std::endl;
 
-    teralens::lensing_system system{
-      ctx,
-      1.0f, // mean particle mass
-      stellar_convergence,
-      smooth_convergence,
-      shear,
-      physical_source_plane_size, // source plane/magnification pattern size
-      random_seed
-    };
+    using system_ptr = std::unique_ptr<teralens::lensing_system>;
+    system_ptr system;
 
-    std::cout << "Number of lenses: " << system.get_particles().size() << std::endl;
+    if(!star_dump_input_filename.empty())
+    {
+      system = system_ptr{
+        new teralens::lensing_system{
+          ctx,
+          star_dump_input_filename,
+          smooth_convergence,
+          shear,
+          physical_source_plane_size
+        }
+      };
+    }
+    else
+    {
+      system = system_ptr{
+        new teralens::lensing_system{
+          ctx,
+          1.0f, // mean particle mass
+          stellar_convergence,
+          smooth_convergence,
+          shear,
+          physical_source_plane_size, // source plane/magnification pattern size
+          random_seed
+        }
+      };
+    }
+
+    std::cout << "Number of lenses: "
+              << system->get_particles().size()
+              << " (kappa_star = " << system->get_compact_convergence()
+              << ")" << std::endl;
+
+    if(!star_dump_output_filename.empty())
+      system->write_star_dump(star_dump_output_filename);
 
 
-    teralens::magnification_pattern_generator generator{ctx, system, std::cout};
+    teralens::magnification_pattern_generator generator{ctx, *system, std::cout};
     qcl::device_array<int> pixel_screen =
         generator.run(resolution, primary_rays_ppx, tree_opening_angle, brute_force_threshold);
 
