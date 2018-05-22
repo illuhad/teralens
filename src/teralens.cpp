@@ -189,7 +189,7 @@ int main(int argc, char** argv)
     if(device_id >= global_ctx->get_num_devices())
     {
       std::cout << "No device with requested index " << device_id
-                << "exists within the suitable set of devices."
+                << " exists within the suitable set of devices."
                 << std::endl;
       return -1;
     }
