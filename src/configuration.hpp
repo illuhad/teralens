@@ -53,7 +53,7 @@ static constexpr bool allow_fma_instructions = true;
 static constexpr bool allow_mad_instructions = true;
 
 // Maximum number of lenses calculated with the brute force algorithm
-static constexpr std::size_t max_brute_force_lenses = 128;
+static constexpr std::size_t max_brute_force_lenses = 64;
 
 // Must be a power of two, and secondary_rays_per_cell^2
 // must be a multiple of the warp size (32 for NVIDIA, 64

@@ -313,6 +313,11 @@ public:
         static_cast<std::size_t>(
           std::round(_system.get_shooting_region_extent().s[1] / ray_distance));
 
+    // Round the number of rays to a multiple of 8, to make sure
+    // that an entire tile is sampled (see the ray position generation code)
+    num_rays_x = 8*((num_rays_x + 8 - 1)/8);
+    num_rays_y = 8*((num_rays_y + 8 - 1)/8);
+
     _num_traced_rays = num_rays_x * num_rays_y;
     if(use_tree)
       _num_traced_rays *= 4 * secondary_rays_per_cell * secondary_rays_per_cell;

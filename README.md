@@ -4,7 +4,7 @@ Teralens is a modern implementation of a tree code for gravitational (quasar) mi
 The general idea behind the microlensing tree code is described by Wambsganss (1999). While Teralens follows the same general principles, the actual algorithms used are dramatically different and tuned for maximum parallel efficiency.
 
 ## Computational method
-Teralens contains two methods to calculate microlensing magnification patterns: A Barnes-Hut-like parallel tree code and a parallel brute-force method that directly sums up the deflection angle of the stars. The brute-force method is (by default) only used if the number of stars is smaller than 128, since then the latency to construct the tree is not always justified (but the exact crossover point depends on the hardware).
+Teralens contains two methods to calculate microlensing magnification patterns: A Barnes-Hut-like parallel tree code and a parallel brute-force method that directly sums up the deflection angle of the stars. The brute-force method is (by default) only used if the number of stars is smaller than 64, since then the latency to construct the tree is not always justified (but the exact crossover point depends on the hardware).
 
 The tree code, the main method of Teralens, works as follows:
 1. A tree is constructed in parallel on the GPU. The tree data structure is provided by my SpatialCL library (see http://github.com/illuhad/SpatialCL). This tree is a perfectly balanced binary tree constructed over the stars sorted along a Hilbert curve (note that this allows Teralens to efficiently process clustered star distributions as well!). While this tree choice can lead to an overlapping of the nodes (which may require more nodes to be accessed), it allows for a very fast tree construction.

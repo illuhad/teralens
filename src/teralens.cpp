@@ -116,6 +116,9 @@ int main(int argc, char** argv)
          "The index of the used device within the eligible devices. If --platform_vendor is not set, "
          "this described the overall index of the GPUs (or CPUs) attached to the system. Otherwise,"
          " corresponds to the device index within the platform specified by the --platform_vendor flag.")
+        ("disable_relaxed_math","If set, do not pass the -cl-fast-relaxed-math argument to the OpenCL compiler. "
+                                "Usually, this is not required, as the -cl-fast-relaxed-math flag is typically "
+                                "safe to use.");
         ;
 
     po::variables_map vm;
@@ -200,7 +203,11 @@ int main(int argc, char** argv)
               << ", OpenCL version: " << ctx->get_device_cl_version()
               << std::endl;
 
-    ctx->enable_fast_relaxed_math();
+    if(!vm.count("disable_relaxed_math"))
+    {
+      std::cout << "Fast, relaxed math is enabled." << std::endl;
+      ctx->enable_fast_relaxed_math();
+    }
 
     using system_ptr = std::unique_ptr<teralens::lensing_system>;
     system_ptr system;
