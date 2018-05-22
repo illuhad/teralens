@@ -200,6 +200,8 @@ int main(int argc, char** argv)
               << ", OpenCL version: " << ctx->get_device_cl_version()
               << std::endl;
 
+    ctx->enable_fast_relaxed_math();
+
     using system_ptr = std::unique_ptr<teralens::lensing_system>;
     system_ptr system;
 

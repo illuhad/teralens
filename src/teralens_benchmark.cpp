@@ -67,6 +67,8 @@ int main()
               << ", OpenCL version: " << ctx->get_device_cl_version()
               << std::endl;
 
+    ctx->enable_fast_relaxed_math();
+
     double total_runtime = 0.0f;
     std::size_t total_num_rays = 0;
 

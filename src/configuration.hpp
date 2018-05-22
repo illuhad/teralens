@@ -47,6 +47,11 @@ using particle_type =
 using vector_type =
   spatialcl::configuration<type_system>::vector_type;
 
+// Whether fused multiply-add instructions should be used
+static constexpr bool allow_fma_instructions = true;
+// Whether multiply-add instructions should be used
+static constexpr bool allow_mad_instructions = true;
+
 // Maximum number of lenses calculated with the brute force algorithm
 static constexpr std::size_t max_brute_force_lenses = 128;
 

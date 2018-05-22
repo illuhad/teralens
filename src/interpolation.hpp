@@ -26,12 +26,14 @@
 #include <QCL/qcl_module.hpp>
 
 #include "configuration.hpp"
+#include "instructions.hpp"
 
 namespace teralens {
 
 using bicubic_interpolation_coefficients = vector16;
 QCL_STANDALONE_MODULE(interpolation)
 QCL_STANDALONE_SOURCE(
+  QCL_INCLUDE_MODULE(instructions)
   QCL_IMPORT_TYPE(bicubic_interpolation_coefficients)
   QCL_IMPORT_TYPE(vector16)
   QCL_IMPORT_TYPE(vector2)
@@ -57,6 +59,7 @@ QCL_STANDALONE_SOURCE(
     #define IP_M31(m) m.sd
     #define IP_M32(m) m.se
     #define IP_M33(m) m.sf
+
   )"
 
   QCL_RAW(
@@ -107,30 +110,30 @@ QCL_STANDALONE_SOURCE(
 
       // Terms for x^0
       scalar result = IP_M00(a);
-      result += IP_M01(a) * pos1.y;
-      result += IP_M02(a) * pos2.y;
-      result += IP_M03(a) * pos3.y;
+      result = FMA(IP_M01(a), pos1.y, result);
+      result = FMA(IP_M02(a), pos2.y, result);
+      result = FMA(IP_M03(a), pos3.y, result);
 
       // Terms for x^1
       scalar temp_result = IP_M10(a);
-      temp_result += IP_M11(a) * pos1.y;
-      temp_result += IP_M12(a) * pos2.y;
-      temp_result += IP_M13(a) * pos3.y;
-      result += pos1.x * temp_result;
+      temp_result = FMA(IP_M11(a), pos1.y, temp_result);
+      temp_result = FMA(IP_M12(a), pos2.y, temp_result);
+      temp_result = FMA(IP_M13(a), pos3.y, temp_result);
+      result      = FMA(pos1.x, temp_result, result);
 
       // Terms for x^2
       temp_result  = IP_M20(a);
-      temp_result += IP_M21(a) * pos1.y;
-      temp_result += IP_M12(a) * pos2.y;
-      temp_result += IP_M13(a) * pos3.y;
-      result += pos2.x * temp_result;
+      temp_result = FMA(IP_M21(a), pos1.y, temp_result);
+      temp_result = FMA(IP_M12(a), pos2.y, temp_result);
+      temp_result = FMA(IP_M13(a), pos3.y, temp_result);
+      result      = FMA(pos2.x, temp_result, result);
 
       // Terms for x^3
       temp_result  = IP_M30(a);
-      temp_result += IP_M31(a) * pos1.y;
-      temp_result += IP_M32(a) * pos2.y;
-      temp_result += IP_M33(a) * pos3.y;
-      result += pos3.x * temp_result;
+      temp_result = FMA(IP_M31(a), pos1.y, temp_result);
+      temp_result = FMA(IP_M32(a), pos2.y, temp_result);
+      temp_result = FMA(IP_M33(a), pos3.y, temp_result);
+      result      = FMA(pos3.x, temp_result, result);
 
       return result;
     }

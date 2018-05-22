@@ -533,9 +533,29 @@ private:
         if(tid < num_rays)
         {
           const ulong ray_id = tid + start_ray;
-          // ToDo: Test tiling optimizations
-          const uint rid_x = ray_id % num_rays_x;
-          const uint rid_y = ray_id / num_rays_x;
+
+          uint rid_x = ray_id % num_rays_x;
+          uint rid_y = ray_id / num_rays_x;
+          /*const uint tile_mask = (~0u) << 3;
+          rid_x &= tile_mask;
+          rid_y &= tile_mask;
+
+          rid_x |= (ray_id & 1);
+          rid_y |= (ray_id & 2) >> 1;
+          rid_x |= (ray_id & 4) >> 1;
+          rid_y |= (ray_id & 8) >> 2;
+          rid_x |= (ray_id & 16) >> 2;
+          rid_y |= (ray_id & 32) >> 3;*/
+
+            /*
+          for(int i = 32; i >= 0; --i)
+          {
+            rid_x <<= 1;
+            rid_x |= ((ray_id >> (2*i)) & 1);
+
+            rid_y <<= 1;
+            rid_y |= ((ray_id >> (2*i+1)) & 1);
+          }*/
 
           const vector2 pos = screen_min_corner
                    + (vector2)(rid_x, rid_y) * (vector2)(ray_separation, ray_separation);
