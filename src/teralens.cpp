@@ -41,10 +41,14 @@ int main(int argc, char** argv)
 {
   try
   {
-    std::cout << "Teralens "
-              << teralens::annotated_version_string()
-              << ", Copyright (c) 2018 Aksel Alpay"
-              << std::endl;
+    std::cout << "************************************************************\n";
+    std::cout << "  Teralens " << teralens::annotated_version_string() << ",\n"
+              << "   Copyright (c) 2018 Aksel Alpay\n"
+              << "\n"
+              << "  This program comes with ABSOLUTELY NO WARRANTY; It is\n"
+              << "  free software, and you are welcome to redistribute it\n"
+              << "  under the conditions of the GNU General Public License v3.\n";
+    std::cout << "************************************************************\n";
 
     teralens::scalar stellar_convergence, smooth_convergence;
     teralens::scalar shear;
@@ -68,6 +72,9 @@ int main(int argc, char** argv)
         +std::to_string(teralens::num_interpolation_cells
                        *teralens::secondary_rays_per_cell
                        *teralens::secondary_rays_per_cell);
+
+    std::size_t device_id;
+    std::string platform_vendor;
 
     po::options_description desc("Allowed options");
     desc.add_options()
@@ -102,6 +109,13 @@ int main(int argc, char** argv)
          "case. Centers the magnification pattern on the center of mass of the stars.")
         ("ray_sampling_region_scale", po::value<teralens::scalar>(&ray_sampling_region_scale)->default_value(1.f),
          "Scaling factor for the ray sampling region")
+        ("platform_vendor", po::value<std::string>(&platform_vendor),
+         "The first OpenCL platform containing this string in its vendor identification will "
+         "be selected for computation")
+        ("device_id", po::value<std::size_t>(&device_id)->default_value(0),
+         "The index of the used device within the eligible devices. If --platform_vendor is not set, "
+         "this described the overall index of the GPUs (or CPUs) attached to the system. Otherwise,"
+         " corresponds to the device index within the platform specified by the --platform_vendor flag.")
         ;
 
     po::variables_map vm;
@@ -133,14 +147,26 @@ int main(int argc, char** argv)
       throw std::invalid_argument{"Unkown backend mode: "+mode};
 
 
+
     qcl::environment env;
+    qcl::global_context_ptr global_ctx;
 #ifdef TERALENS_CPU_FALLBACK
-    qcl::global_context_ptr global_ctx = env.create_global_cpu_context();
+    if(platform_vendor.empty())
+      global_ctx = env.create_global_cpu_context();
+    else
+    {
+      const cl::Platform& platform = env.get_platform_by_preference({platform_vendor});
+      global_ctx = env.create_global_context(platform, CL_DEVICE_TYPE_CPU);
+    }
 #else
-    const cl::Platform& platform =
-        env.get_platform_by_preference({"NVIDIA", "AMD", "Intel"});
-    qcl::global_context_ptr global_ctx =
-        env.create_global_context(platform, CL_DEVICE_TYPE_GPU);
+    if(platform_vendor.empty())
+      global_ctx = env.create_global_gpu_context();
+    else
+    {
+      const cl::Platform& platform =
+          env.get_platform_by_preference({platform_vendor});
+      global_ctx = env.create_global_context(platform, CL_DEVICE_TYPE_GPU);
+    }
 #endif
 
     if(global_ctx->get_num_devices() == 0)
@@ -149,7 +175,26 @@ int main(int argc, char** argv)
       return -1;
     }
 
-    qcl::device_context_ptr ctx = global_ctx->device(0);
+    std::cout << "Suitable devices:" << std::endl;
+    for(std::size_t dev = 0; dev < global_ctx->get_num_devices(); ++dev)
+    {
+      std::cout << " " << dev << ": " << global_ctx->device(dev)->get_device_name()
+                << " (" << global_ctx->device(dev)->get_device_vendor()
+                << ", " << global_ctx->device(dev)->get_device_cl_version()<< ")";
+      if(dev == device_id)
+        std::cout << " [selected]";
+      std::cout << std::endl;
+    }
+
+    if(device_id >= global_ctx->get_num_devices())
+    {
+      std::cout << "No device with requested index " << device_id
+                << "exists within the suitable set of devices."
+                << std::endl;
+      return -1;
+    }
+
+    qcl::device_context_ptr ctx = global_ctx->device(device_id);
     std::cout << "Using device: "     << ctx->get_device_name()
               << ", vendor: "         << ctx->get_device_vendor()
               << ", OpenCL version: " << ctx->get_device_cl_version()

@@ -33,7 +33,7 @@ Teralens was written to be as non-restrictive as possible:
 * You do _not_ need hardware from one specific vendor. Teralens should work with any GPU vendor (NVIDIA, AMD, in principle even Intel integrated GPUs). Unfortunately, at the moment I only have NVIDIA GPUs available for testing, but I strive for wide compatibility. If you have a GPU from a different vendor and encounter problems, it is considered a bug and I will do my best to fix it.
 * You do _not_ need expensive data-center hardware (e.g. NVIDIA Tesla cards). Any off-the-shelf consumer grade GPU is fine. In fact, a Tesla card will give you no benefits compared to a consumer GPU that is from the same generation and has comparable clock speed, core count and memory bandwidth.
 * Your GPU does _not_ need to have vast amounts of memory. Unless you want to create massive magnification patterns with more than 10 million stars, even 2GB should suffice.
-* Teralens also runs decently on CPUs, if you do not have a GPU available at all. However, you will still need an OpenCL implementation from your CPU vendor (e.g. Intel). Additionally, most of my optimization efforts target GPUs. Within the same power envolope, Teralens will run significantly faster on a GPU.
+* Teralens also runs decently on CPUs, if you do not have a GPU available at all. However, you will still need an OpenCL implementation from your CPU vendor (e.g. Intel). Additionally, most of my optimization efforts target GPUs. Within the same power envelope, Teralens will run significantly faster on a GPU.
 
 ## Software dependencies
 For a successful compilation of Teralens, you need the following software:
