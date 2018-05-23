@@ -233,7 +233,7 @@ private:
           for(int offset_x = 0; offset_x < 2; ++offset_x)
           {
             bicubic_interpolation_coefficients coeffs;
-            for(int i = 0; i < 4; ++i)
+            for(int i = 0; i < 4; ++i)                           
               for(int j = 0; j < 4; ++j)
                 deflections[i][j] = long_range_deflections_x[offset_x + i][offset_y + j];
 
@@ -285,7 +285,7 @@ public:
 
     cl_int err = this->evaluate_lens_equation(_ctx,
                         cl::NDRange{total_num_rays_per_cell * cells_per_ray * num_primary_rays},
-                        cl::NDRange{std::max(Max_particles_per_ray,total_num_rays_per_cell)})(
+                        cl::NDRange{group_size})(
           primary_ray_positions,
           selected_particles,
           num_selected_particles,
@@ -310,26 +310,20 @@ private:
   qcl::device_context_ptr _ctx;
   pixel_screen* _screen;
 
+  static constexpr std::size_t group_size = 128;
+  static constexpr std::size_t groups_per_cell =
+      (secondary_rays_per_cell*secondary_rays_per_cell)/group_size;
+
+
+  static_assert(group_size >= Max_particles_per_ray, "At least as many threads as the "
+                                                     "maximum particle number are required "
+                                                     "per primary ray");
   // Number of interpolation cells per primary ray in each dimension
   static constexpr std::size_t num_interpolation_cells = 2;
-  // Number of rays that need to be interpolated for the interpolation
-  // cells in each direction per primary ray. This is not simply
-  // 4*num_interpolation_cells because the boundary evaluations between
-  // the cells are shared.
-  static constexpr std::size_t interpolation_ray_grid_size=5;
-
-  static constexpr std::size_t num_multipole_evaluations=
-      interpolation_ray_grid_size*interpolation_ray_grid_size;
-  static constexpr std::size_t multipole_evaluations_group_size = 32;
-  static_assert(multipole_evaluations_group_size >= num_multipole_evaluations,
-                "The group size must be at least as large as the number"
-                " of interpolation samples around a primary ray.");
 
   static constexpr std::size_t cells_per_ray = num_interpolation_cells
                                              * num_interpolation_cells;
 
-  QCL_ENTRYPOINT(compute_interpolation_deflections)
-  QCL_ENTRYPOINT(compute_interpolation_coefficients)
   QCL_ENTRYPOINT(evaluate_lens_equation)
   QCL_MAKE_SOURCE(
     QCL_IMPORT_CONSTANT(Max_particles_per_ray)
@@ -339,11 +333,10 @@ private:
     QCL_INCLUDE_MODULE(lensing_moments)
     QCL_IMPORT_TYPE(vector2)
     QCL_IMPORT_TYPE(vector8)
-    QCL_IMPORT_CONSTANT(num_interpolation_cells)
-    QCL_IMPORT_CONSTANT(interpolation_ray_grid_size)
-    QCL_IMPORT_CONSTANT(num_multipole_evaluations)
     QCL_IMPORT_CONSTANT(secondary_rays_per_cell)
     QCL_IMPORT_CONSTANT(cells_per_ray)
+    QCL_IMPORT_CONSTANT(group_size)
+    QCL_IMPORT_CONSTANT(groups_per_cell)
     QCL_RAW(
 
 
@@ -361,7 +354,7 @@ private:
       uchar2 ray_id2d(const uint ray_id)
       {
         return (uchar2)(ray_id & (secondary_rays_per_cell - 1),
-                        ray_id / secondary_rays_per_cell);
+                        ray_id /  secondary_rays_per_cell);
       }
 
       // Blocksize should be secondary_rays_per_cell^2. Each block
@@ -383,8 +376,10 @@ private:
       {
         const size_t tid = get_global_id(0);
         const size_t lid = get_local_id(0);
-        const size_t primary_ray_id       = get_group_id(0) / cells_per_ray;
-        const uchar interpolation_cell_id = get_group_id(0) & 3;
+        const size_t gid = get_group_id(0);
+
+        const size_t primary_ray_id       =  gid / (groups_per_cell * cells_per_ray);
+        const uchar interpolation_cell_id = (gid /  groups_per_cell) & 3;
         const scalar interpolation_cell_size = primary_ray_separation * 0.5f;
         const scalar secondary_ray_separation = interpolation_cell_size / secondary_rays_per_cell;
 
@@ -396,7 +391,7 @@ private:
 
         vector2 deflection = (vector2)0.0f;
 
-        const uchar2 rid = ray_id2d(lid);
+        const uchar2 rid = ray_id2d(lid + (gid % groups_per_cell) * group_size);
         const vector2 evaluation_position = interpolation_cell_min_corner
             + secondary_ray_separation*(convert_float2(rid)+(vector2)0.5f);
 
@@ -407,11 +402,12 @@ private:
         barrier(CLK_LOCAL_MEM_FENCE);
 
         // First, calculate close-range deflections
+//$pp pragma unroll 4$
         for(int i = 0; i < num_particles; ++i)
         {
           const particle_type p = particle_cache[i];
           const vector2 R = evaluation_position - p.xy;
-          deflection += p.z * R * native_recip(dot(R,R));
+          deflection += R * native_divide(p.z, dot(R,R));
         }
 
         // Calculate long-range, interpolated deflections

@@ -45,7 +45,6 @@ QCL_STANDALONE_SOURCE(
       #define MAD(a,b,c) (a*b+c)
     #endif
   )"
-  QCL_RAW()
 )
 
 }

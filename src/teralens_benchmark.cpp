@@ -32,7 +32,7 @@
 #include "configuration.hpp"
 #include "magnification_pattern.hpp"
 
-constexpr std::size_t num_samples = 5;
+constexpr std::size_t num_samples = 100;
 constexpr std::size_t seed = 140;
 constexpr std::size_t resolution = 1024;
 constexpr teralens::scalar opening_angle = 0.5f;
