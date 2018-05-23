@@ -148,11 +148,15 @@ private:
   /// Initializes the higher multipole moments (from quadrupole to 64-pole)
   void init_higher_multipoles()
   {
-    const std::size_t num_summation_groups =
-            this->get_effective_num_particles() / reduction_group_size;
+    // Calculate the maximum number of summation groups required. Use std::max()
+    // to ensure that it is always > 0. (This would cause an error during the
+    // creation of the reduction_spill_buffer.
+    const std::size_t max_num_summation_groups =
+            std::max(static_cast<std::size_t>(1),
+                     this->get_effective_num_particles() / reduction_group_size);
 
-    qcl::device_array<vector2> reduction_spill_buffer0{_ctx, num_summation_groups};
-    qcl::device_array<vector8> reduction_spill_buffer1{_ctx, num_summation_groups};
+    qcl::device_array<vector2> reduction_spill_buffer0{_ctx, max_num_summation_groups};
+    qcl::device_array<vector8> reduction_spill_buffer1{_ctx, max_num_summation_groups};
 
 
     std::size_t particles_per_node = 4;
@@ -160,7 +164,7 @@ private:
     {
       this->reset_reduction_spill_buffers(reduction_spill_buffer0,
                                           reduction_spill_buffer1,
-                                          num_summation_groups);
+                                          max_num_summation_groups);
 
       cl_int err = this->build_higher_multipole_moments(_ctx,
                                                         this->get_num_particles(),

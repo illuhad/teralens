@@ -186,7 +186,7 @@ int main(int argc, char** argv)
                 << ", " << global_ctx->device(dev)->get_device_cl_version()<< ")";
       if(dev == device_id)
         std::cout << " [selected]";
-      std::cout << std::endl;
+      std::cout << std::endl << std::endl;
     }
 
     if(device_id >= global_ctx->get_num_devices())
@@ -198,10 +198,6 @@ int main(int argc, char** argv)
     }
 
     qcl::device_context_ptr ctx = global_ctx->device(device_id);
-    std::cout << "Using device: "     << ctx->get_device_name()
-              << ", vendor: "         << ctx->get_device_vendor()
-              << ", OpenCL version: " << ctx->get_device_cl_version()
-              << std::endl;
 
     if(!vm.count("disable_relaxed_math"))
     {

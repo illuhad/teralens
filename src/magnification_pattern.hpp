@@ -315,12 +315,16 @@ public:
 
     // Round the number of rays to a multiple of 8, to make sure
     // that an entire tile is sampled (see the ray position generation code)
-    num_rays_x = 8*((num_rays_x + 8 - 1)/8);
-    num_rays_y = 8*((num_rays_y + 8 - 1)/8);
+    num_rays_x = make_multiple_of(num_rays_x, 8);
+    num_rays_y = make_multiple_of(num_rays_y, 8);
+    // Correct ray distance
 
     _num_traced_rays = num_rays_x * num_rays_y;
     if(use_tree)
-      _num_traced_rays *= 4 * secondary_rays_per_cell * secondary_rays_per_cell;
+    {
+      _num_traced_rays *=
+          num_interpolation_cells * secondary_rays_per_cell * secondary_rays_per_cell;
+    }
 
     // If we are using the brute-force backend, use a larger batch size
     std::size_t effective_max_batch_size = max_batch_size;
@@ -398,6 +402,14 @@ public:
   }
 
 private:
+  std::size_t make_multiple_of(std::size_t x, std::size_t i) const
+  {
+    if(x % i == 0)
+      return x;
+
+    return (x/i + 1) * i;
+  }
+
   void solve_with_tree(const ray_scheduler& scheduler,
                        const std::size_t num_rays_in_batch,
                        const scalar ray_distance,
