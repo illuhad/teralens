@@ -47,6 +47,11 @@ using particle_type =
 using vector_type =
   spatialcl::configuration<type_system>::vector_type;
 
+// Whether the evaluation order of primary rays should be reordered
+// by grouping rays into tiles. This can reduce branch divergence
+// during the tree walk.
+static constexpr bool reorder_primary_rays = true;
+
 // Whether fused multiply-add instructions should be used
 static constexpr bool allow_fma_instructions = true;
 // Whether multiply-add instructions should be used
@@ -57,9 +62,10 @@ static constexpr std::size_t max_brute_force_lenses = 64;
 
 // Must be a power of two, and secondary_rays_per_cell^2
 // must be a multiple of the warp size (32 for NVIDIA, 64
-// for AMD)
+// for AMD) and 128 (the work group size for the evaluation
+// of the lens equation)
 static constexpr std::size_t secondary_rays_per_cell = 32;
-
+// Maximum number of primary rays processed in one batch.
 static constexpr std::size_t max_batch_size = 256*1024;
 
 static constexpr std::size_t max_selected_particles = 128;

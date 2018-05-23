@@ -511,8 +511,10 @@ public:
   }
 
 private:
+
   QCL_ENTRYPOINT(generate_ray_positions)
   QCL_MAKE_SOURCE(
+    QCL_IMPORT_CONSTANT(reorder_primary_rays)
     QCL_IMPORT_TYPE(vector2)
     QCL_IMPORT_TYPE(scalar)
     QCL_RAW(
@@ -528,15 +530,18 @@ private:
 
         if(tid < num_rays)
         {
+          const ulong ray_id = tid + start_ray;
+
+$pp if reorder_primary_rays == 1 $
+          const uint num_tiles_x = num_rays_x >> 3;
+
           // First calculate the index of the 8x8 tile to which
           // this ray belongs
-          const ulong ray_id = tid + start_ray;  
-          const uint num_tiles_x = num_rays_x >> 3;
-          const ulong tile_id = ray_id >> 6;
+          const ulong tile_id  = ray_id >> 6;
           const uint tile_id_x = tile_id % num_tiles_x;
           const uint tile_id_y = tile_id / num_tiles_x;
 
-          const uint local_ray_id = ray_id - tile_id;
+          const uint local_ray_id = ray_id & 63;
 
           // Then calculate the ray position by sorting
           // along a z-curve within each tile
@@ -548,6 +553,12 @@ private:
                            | ((local_ray_id & 2) >> 1)
                            | ((local_ray_id & 8) >> 2)
                            | ((local_ray_id & 32)>> 3);
+          //const uint rid_x = 8 * tile_id_x + local_ray_id % 8;
+          //const uint rid_y = 8 * tile_id_y + local_ray_id / 8;
+$pp else $
+          const uint rid_x = ray_id % num_rays_x;
+          const uint rid_y = ray_id / num_rays_x;
+$pp endif $
 
           const vector2 pos = screen_min_corner
                    + (vector2)(rid_x, rid_y) * (vector2)(ray_separation, ray_separation);
