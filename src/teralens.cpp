@@ -75,25 +75,26 @@ int main(int argc, char** argv)
 
     std::size_t device_id;
     std::string platform_vendor;
+    std::string cl_options;
 
     po::options_description desc("Allowed options");
     desc.add_options()
         ("help", "print help message")
-        ("kappa_star",
+        ("kappa-star",
          po::value<teralens::scalar>(&stellar_convergence)->default_value(0.2f),
          "convergence due to stars")
-        ("kappa_smooth",
+        ("kappa-smooth",
          po::value<teralens::scalar>(&smooth_convergence)->default_value(0.0f),
          "convergence due to smooth matter")
         ("gamma,g", po::value<teralens::scalar>(&shear)->default_value(0.1f), "shear")
-        ("physical_size,s",
+        ("physical-size,s",
          po::value<teralens::scalar>(&physical_source_plane_size)->default_value(20.f),
          "The physical size of the magnification pattern in Einstein radii")
         ("seed", po::value<std::size_t>(&random_seed)->default_value(600001),
          "Random seed")
-        ("opening_angle,a", po::value<teralens::scalar>(&tree_opening_angle)->default_value(0.5f),
+        ("opening-angle,a", po::value<teralens::scalar>(&tree_opening_angle)->default_value(0.5f),
          "Opening angle of Barnes-Hut tree")
-        ("primary_rays_ppx,p", po::value<teralens::scalar>(&primary_rays_ppx)->default_value(0.1f),
+        ("primary-rays-ppx,p", po::value<teralens::scalar>(&primary_rays_ppx)->default_value(0.1f),
          rays_ppx_desc.c_str())
         ("resolution,r", po::value<std::size_t>(&resolution)->default_value(1024),
          "Number of pixels of the magnification pattern in x and y direction")
@@ -101,24 +102,25 @@ int main(int argc, char** argv)
          "Filename of output fits file")
         ("mode,m", po::value<std::string>(&mode)->default_value("auto"),
          "backend selection mode. Available options: tree, brute_force, auto")
-        ("write_star_dump", po::value<std::string>(&star_dump_output_filename),
+        ("write-star-dump", po::value<std::string>(&star_dump_output_filename),
          "If set, the list of sampled stars will be saved to this file, with each row containing x coordinate, "
          "y coordinate, and mass.")
-        ("read_star_dump", po::value<std::string>(&star_dump_input_filename),
+        ("read-star-dump", po::value<std::string>(&star_dump_input_filename),
          "If set, loads the stars from the specified file. The kappa_star argument is ignored in this "
          "case. Centers the magnification pattern on the center of mass of the stars.")
-        ("ray_sampling_region_scale", po::value<teralens::scalar>(&ray_sampling_region_scale)->default_value(1.f),
+        ("ray-sampling-region-scale", po::value<teralens::scalar>(&ray_sampling_region_scale)->default_value(1.f),
          "Scaling factor for the ray sampling region")
-        ("platform_vendor", po::value<std::string>(&platform_vendor),
+        ("platform-vendor", po::value<std::string>(&platform_vendor),
          "The first OpenCL platform containing this string in its vendor identification will "
          "be selected for computation")
-        ("device_id", po::value<std::size_t>(&device_id)->default_value(0),
-         "The index of the used device within the eligible devices. If --platform_vendor is not set, "
+        ("device-id", po::value<std::size_t>(&device_id)->default_value(0),
+         "The index of the used device within the eligible devices. If --platform-vendor is not set, "
          "this described the overall index of the GPUs (or CPUs) attached to the system. Otherwise,"
-         " corresponds to the device index within the platform specified by the --platform_vendor flag.")
-        ("disable_relaxed_math","If set, do not pass the -cl-fast-relaxed-math argument to the OpenCL compiler. "
+         " corresponds to the device index within the platform specified by the --platform-vendor flag.")
+        ("disable-relaxed-math","If set, do not pass the -cl-fast-relaxed-math argument to the OpenCL compiler. "
                                 "Usually, this is not required, as the -cl-fast-relaxed-math flag is typically "
-                                "safe to use.");
+                                "safe to use.")
+        ("cl-options", po::value<std::string>(&cl_options), "Additional options for the OpenCL compiler")
         ;
 
     po::variables_map vm;
@@ -200,10 +202,17 @@ int main(int argc, char** argv)
 
     qcl::device_context_ptr ctx = global_ctx->device(device_id);
 
-    if(!vm.count("disable_relaxed_math"))
+    if(!vm.count("disable-relaxed-math"))
     {
       std::cout << "Fast, relaxed math is enabled." << std::endl;
       ctx->enable_fast_relaxed_math();
+    }
+    if(!cl_options.empty())
+    {
+      ctx->append_build_option(cl_options);
+      std::cout << "Using OpenCL compiler options: "
+                << ctx->get_build_options()
+                << std::endl;
     }
 
     using system_ptr = std::unique_ptr<teralens::lensing_system>;
