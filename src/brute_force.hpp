@@ -30,11 +30,21 @@
 
 namespace teralens {
 
+/// Implements a simple brute force strategy for the evaluation of the lens
+/// equation by directly summing up the deflection angles.
 class brute_force_ray_tracer
 {
 public:
   QCL_MAKE_MODULE(brute_force_ray_tracer)
 
+  /// Construct object
+  /// \param ctx The device context
+  /// \param particles The particle device buffer
+  /// \param num_particles The number of entries in the particle device
+  /// buffer that are actually used
+  /// \param screen The pixel screen where the sampled rays will be binned.
+  /// Note that it is the user's responsibility to zero out this buffer,
+  /// if a new magnification pattern should be calculated.
   brute_force_ray_tracer(const qcl::device_context_ptr& ctx,
                          const qcl::device_array<particle_type>& particles,
                          std::size_t num_particles,
@@ -45,6 +55,14 @@ public:
       _screen{screen}
   {}
 
+  /// Execute ray tracing
+  /// \param ray_positions Contains the positions in the image plane of the rays
+  /// \param num_rays The number of rays in the \c ray_positions buffer that
+  /// are actually used
+  /// \param convergence_smooth The kappa_smooth parameter, i.e. the normalized
+  /// surface density due to smoothly distributed matter
+  /// \param shear The global shear. It is assumed that the shear compresses
+  /// along the x-axis and stretches along the y-axis.
   void operator()(const qcl::device_array<vector2>& ray_positions,
                   std::size_t num_rays,
                   const scalar convergence_smooth,
@@ -69,6 +87,7 @@ public:
 private:
   static constexpr std::size_t group_size = 128;
 
+
   QCL_ENTRYPOINT(brute_force_lens_equation)
   QCL_MAKE_SOURCE(
     QCL_INCLUDE_MODULE(pixel_screen)
@@ -77,6 +96,7 @@ private:
     QCL_IMPORT_TYPE(scalar)
     QCL_IMPORT_CONSTANT(group_size)
     QCL_RAW(
+      /// Kernel for the evaluation of the lens equation and ray binning in pixels
       __kernel void brute_force_lens_equation(__global particle_type* restrict particles,
                                               const ulong num_particles,
                                               __global vector2* restrict ray_positions,

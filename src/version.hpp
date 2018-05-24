@@ -26,8 +26,8 @@
 #include <string>
 
 #define TERALENS_VERSION_MAJOR 1
-#define TERALENS_VERSION_MINOR 2
-#define TERALENS_VERSION_PATCH 4
+#define TERALENS_VERSION_MINOR 3
+#define TERALENS_VERSION_PATCH 0
 #define TERALENS_VERSION_ANNOTATION "Release"
 #define TERALENS_GIT_BRANCH BOOST_PP_STRINGIZE(GIT_BRANCH)
 #define TERALENS_GIT_COMMIT BOOST_PP_STRINGIZE(GIT_COMMIT_HASH)
@@ -38,16 +38,14 @@ static std::string version_string()
 {
   return  std::to_string(TERALENS_VERSION_MAJOR)
      +"."+std::to_string(TERALENS_VERSION_MINOR)
-     +"-"+std::to_string(TERALENS_VERSION_PATCH);
+     +"."+std::to_string(TERALENS_VERSION_PATCH)
+     +"-"+std::string{TERALENS_GIT_BRANCH}
+     +"/"+std::string{TERALENS_GIT_COMMIT};
 }
 
 static std::string annotated_version_string()
 {
-  return version_string()+" ("+std::string{TERALENS_VERSION_ANNOTATION}
-                         +", git: "
-                         +std::string{TERALENS_GIT_BRANCH}
-                         +"/"
-                         +std::string{TERALENS_GIT_COMMIT}+")";
+  return version_string()+" ("+std::string{TERALENS_VERSION_ANNOTATION}+")";
 }
 
 

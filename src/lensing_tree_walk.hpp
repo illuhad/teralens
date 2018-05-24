@@ -283,9 +283,15 @@ public:
 
     std::size_t total_num_rays_per_cell = secondary_rays_per_cell*secondary_rays_per_cell;
 
+#ifdef TERALENS_CPU_FALLBACK
+    cl::NDRange local_size = cl::NullRange;
+#else
+    cl::NDRange local_size = cl::NDRange{group_size};
+#endif
+
     cl_int err = this->evaluate_lens_equation(_ctx,
                         cl::NDRange{total_num_rays_per_cell * cells_per_ray * num_primary_rays},
-                        cl::NDRange{group_size})(
+                        local_size)(
           primary_ray_positions,
           selected_particles,
           num_selected_particles,
@@ -324,6 +330,12 @@ private:
   static constexpr std::size_t cells_per_ray = num_interpolation_cells
                                              * num_interpolation_cells;
 
+#ifdef TERALENS_CPU_FALLBACK
+  static constexpr int cpu_fallback = 1;
+#else
+  static constexpr int cpu_fallback = 0;
+#endif
+
   QCL_ENTRYPOINT(evaluate_lens_equation)
   QCL_MAKE_SOURCE(
     QCL_IMPORT_CONSTANT(Max_particles_per_ray)
@@ -337,8 +349,18 @@ private:
     QCL_IMPORT_CONSTANT(cells_per_ray)
     QCL_IMPORT_CONSTANT(group_size)
     QCL_IMPORT_CONSTANT(groups_per_cell)
+    QCL_IMPORT_CONSTANT(cpu_fallback)
+    QCL_IMPORT_CONSTANT(allow_local_mem_on_cpu)
     QCL_RAW(
+$pp if (cpu_fallback == 0) || (allow_local_mem_on_cpu == 1) $
+$pp   define USE_LOCAL_MEM $
+$pp endif $
 
+$pp if cpu_fallback == 0 $
+$pp   define KERNEL_ATTRIBUTES __attribute__((reqd_work_group_size(group_size, 1, 1))) $
+$pp else $
+$pp   define KERNEL_ATTRIBUTES $
+$pp endif $
 
       // id should be <= 3. Translates id into
       // 2d indices ranging from -1 to 0 in each component
@@ -372,8 +394,12 @@ private:
                                            const ulong num_px_x,
                                            const ulong num_px_y,
                                            const vector2 screen_center,
-                                           const vector2 screen_extent)
+                                           const vector2 screen_extent) KERNEL_ATTRIBUTES
       {
+$pp ifdef USE_LOCAL_MEM $
+        __local particle_type particle_cache [Max_particles_per_ray];
+$pp endif $
+
         const size_t tid = get_global_id(0);
         const size_t lid = get_local_id(0);
         const size_t gid = get_group_id(0);
@@ -382,8 +408,6 @@ private:
         const uchar interpolation_cell_id = (gid /  groups_per_cell) & 3;
         const scalar interpolation_cell_size = primary_ray_separation * 0.5f;
         const scalar secondary_ray_separation = interpolation_cell_size / secondary_rays_per_cell;
-
-        __local particle_type particle_cache [Max_particles_per_ray];
 
         const vector2 interpolation_cell_min_corner = primary_ray_positions[primary_ray_id]
                    + interpolation_cell_size * convert_float2(interpolation_cell_id2d(interpolation_cell_id));
@@ -395,17 +419,26 @@ private:
         const vector2 evaluation_position = interpolation_cell_min_corner
             + secondary_ray_separation*(convert_float2(rid)+(vector2)0.5f);
 
+$pp ifdef USE_LOCAL_MEM $
         // Collectively load exact particles into local memory
         if(lid < num_particles)
           particle_cache[lid] = exact_particles[primary_ray_id * Max_particles_per_ray + lid];
 
         barrier(CLK_LOCAL_MEM_FENCE);
+$pp else $
+        __global const particle_type* particle_location =
+              exact_particles + primary_ray_id * Max_particles_per_ray;
+$pp endif $
 
         // First, calculate close-range deflections
 //$pp pragma unroll 4$
         for(int i = 0; i < num_particles; ++i)
         {
+$pp ifdef USE_LOCAL_MEM $
           const particle_type p = particle_cache[i];
+$pp else $
+          const particle_type p = particle_location[i];
+$pp endif $
           const vector2 R = evaluation_position - p.xy;
           deflection += R * native_divide(p.z, dot(R,R));
         }

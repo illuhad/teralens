@@ -47,27 +47,54 @@ using particle_type =
 using vector_type =
   spatialcl::configuration<type_system>::vector_type;
 
-// Whether the evaluation order of primary rays should be reordered
-// by grouping rays into tiles. This can reduce branch divergence
-// during the tree walk.
+/// Whether the evaluation order of primary rays should be reordered
+/// by grouping rays into tiles. This can reduce branch divergence
+/// during the tree walk.
+#ifdef TERALENS_CPU_FALLBACK
+static constexpr bool reorder_primary_rays = false;
+#else
 static constexpr bool reorder_primary_rays = true;
+#endif
 
-// Whether fused multiply-add instructions should be used
+
+/// The OpenCL group size for the primary ray tree queries
+#ifdef TERALENS_CPU_FALLBACK
+static constexpr std::size_t primary_ray_query_group_size = 32;
+#else
+static constexpr std::size_t primary_ray_query_group_size = 128;
+#endif
+
+/// Whether fused multiply-add instructions should be used
 static constexpr bool allow_fma_instructions = true;
-// Whether multiply-add instructions should be used
+/// Whether multiply-add instructions should be used
 static constexpr bool allow_mad_instructions = true;
+/// Wether to allow the usage of local memory for the
+/// CPU backend. On some OpenCL implementations, local
+/// memory seems to accelerate the computation even on CPUs
+/// (Intel?). On others, it may slow down the computation. (pocl?)
+static constexpr bool allow_local_mem_on_cpu = false;
 
-// Maximum number of lenses calculated with the brute force algorithm
+/// Maximum number of lenses calculated with the brute force algorithm.
+/// Usually, the tree backend is already faster for few dozen
+/// lenses.
 static constexpr std::size_t max_brute_force_lenses = 64;
 
-// Must be a power of two, and secondary_rays_per_cell^2
-// must be a multiple of the warp size (32 for NVIDIA, 64
-// for AMD) and 128 (the work group size for the evaluation
-// of the lens equation)
+/// The number of secondary rays that are evaluated per interpolation
+/// cell. The total number of evaluated rays per primary ray
+/// is \c num_interpolation_cells * secondary_rays_per_cells^2.
+/// Must be a power of two, and secondary_rays_per_cell^2
+/// must be a multiple of the warp size (32 for NVIDIA, 64
+/// for AMD) and 128 (the work group size for the evaluation
+/// of the lens equation)
 static constexpr std::size_t secondary_rays_per_cell = 32;
-// Maximum number of primary rays processed in one batch.
+/// Maximum number of primary rays processed in one batch.
 static constexpr std::size_t max_batch_size = 256*1024;
-
+/// The maximum number of particles to be treated exactly for
+/// each primary ray. Note that teralens will attempt to allocate
+/// a buffer with a size of
+/// \c max_selected_particles * max_batch_size, so do not
+/// make this number too large! In practice, even 64 (or less?)
+/// seems to suffice.
 static constexpr std::size_t max_selected_particles = 128;
 
 // Do not change - changing this will not actually change the number

@@ -50,6 +50,7 @@ int main(int argc, char** argv)
               << "  under the conditions of the GNU General Public License v3.\n";
     std::cout << "************************************************************\n";
 
+    // Define input parameters for the command line interface
     teralens::scalar stellar_convergence, smooth_convergence;
     teralens::scalar shear;
     teralens::scalar physical_source_plane_size;
@@ -123,6 +124,7 @@ int main(int argc, char** argv)
         ("cl-options", po::value<std::string>(&cl_options), "Additional options for the OpenCL compiler")
         ;
 
+    // Evaluate command line
     po::variables_map vm;
     po::store(po::parse_command_line(argc, argv, desc), vm);
     po::notify(vm);
@@ -132,6 +134,7 @@ int main(int argc, char** argv)
       return 1;
     }
 
+    // Check sanity of arguments
     if(primary_rays_ppx <= 0.0f)
       throw std::invalid_argument{"Number of primary rays per pixel must be greater than 0"};
     if(physical_source_plane_size <= 0.0)
@@ -152,7 +155,7 @@ int main(int argc, char** argv)
       throw std::invalid_argument{"Unkown backend mode: "+mode};
 
 
-
+    // Initialize OpenCL backend
     qcl::environment env;
     qcl::global_context_ptr global_ctx;
 #ifdef TERALENS_CPU_FALLBACK
@@ -202,6 +205,8 @@ int main(int argc, char** argv)
 
     qcl::device_context_ptr ctx = global_ctx->device(device_id);
 
+    // We enable relaxed math unless it was explicitly disabled via
+    // the --disable-relaxed-math command line argument
     if(!vm.count("disable-relaxed-math"))
     {
       std::cout << "Fast, relaxed math is enabled." << std::endl;
@@ -218,6 +223,11 @@ int main(int argc, char** argv)
     using system_ptr = std::unique_ptr<teralens::lensing_system>;
     system_ptr system;
 
+    // If a star dump input filename was given, load stars from this file.
+    // Otherwise, we generate a new sample of stars from the given
+    // kappa_star value.
+    // The constructor of teralens::lensing_system will either generate a star sample
+    // or read from the star dump file
     if(!star_dump_input_filename.empty())
     {
       system = system_ptr{
@@ -252,11 +262,17 @@ int main(int argc, char** argv)
               << " (kappa_star = " << system->get_compact_convergence()
               << ")" << std::endl;
 
+    // If an output filename for a star dump was given,
+    // save the star list used in the subsequent calculation
     if(!star_dump_output_filename.empty())
       system->write_star_dump(star_dump_output_filename);
 
 
+    // Now the action begins!
+    // ...first construct magnification_pattern_generator object
     teralens::magnification_pattern_generator generator{ctx, *system, std::cout};
+    // ...and execute the calculation. We end up with a pixel_screen object
+    // containing the ray counts for each pixel
     qcl::device_array<int> pixel_screen =
         generator.run(resolution, primary_rays_ppx, tree_opening_angle, brute_force_threshold);
 
