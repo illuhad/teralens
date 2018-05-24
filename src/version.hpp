@@ -22,12 +22,15 @@
 #ifndef TERALENS_VERSION_HPP
 #define TERALENS_VERSION_HPP
 
+#include <boost/preprocessor/stringize.hpp>
 #include <string>
 
 #define TERALENS_VERSION_MAJOR 1
 #define TERALENS_VERSION_MINOR 2
-#define TERALENS_VERSION_PATCH 3
+#define TERALENS_VERSION_PATCH 4
 #define TERALENS_VERSION_ANNOTATION "Release"
+#define TERALENS_GIT_BRANCH BOOST_PP_STRINGIZE(GIT_BRANCH)
+#define TERALENS_GIT_COMMIT BOOST_PP_STRINGIZE(GIT_COMMIT_HASH)
 
 namespace teralens {
 
@@ -40,7 +43,11 @@ static std::string version_string()
 
 static std::string annotated_version_string()
 {
-  return version_string()+" ("+std::string{TERALENS_VERSION_ANNOTATION}+")";
+  return version_string()+" ("+std::string{TERALENS_VERSION_ANNOTATION}
+                         +", git: "
+                         +std::string{TERALENS_GIT_BRANCH}
+                         +"/"
+                         +std::string{TERALENS_GIT_COMMIT}+")";
 }
 
 
