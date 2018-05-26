@@ -40,7 +40,7 @@ For a successful compilation of Teralens, you need the following software:
 * A C++11-compliant compiler
 * `cmake`
 * `cfitsio`
-* An OpenCL implementation supporting at least OpenCL 1.2. Teralens is tested with the NVIDIA and Intel OpenCL implementations, but should also work on AMD hardware (but I do not have AMD GPUs available for testing at the moment -- reports on the experience of using Teralens on AMD GPUs or CPUs are highly appreciated!)
+* An OpenCL implementation supporting at least OpenCL 1.2. Teralens is tested with the NVIDIA, Intel and pocl (CPU as well as CUDA backend) OpenCL implementations, but should also work on AMD hardware (but I do not have AMD GPUs available for testing at the moment -- reports on the experience of using Teralens on AMD GPUs or CPUs are highly appreciated!)
 * The OpenCL C++ bindings. If you do not have them installed, you can get them here: https://github.com/KhronosGroup/OpenCL-CLHPP. In particular, the header file `cl2.hpp` is required.
 * The `boost` C++ libraries. In particular, the `boost.compute` library. Please use the newest version available, since older versions may be affected by a memory leak. See https://github.com/boostorg/compute/issues/746.
 * Teralens also depends on my SpatialCL and QuickCL libraries. See below how to fulfill these dependencies.

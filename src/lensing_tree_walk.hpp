@@ -469,8 +469,6 @@ $pp endif $
                            pixels,
                            num_px_x, num_px_y,
                            screen_center, screen_extent);
-
-
         }
       }
 

@@ -29,7 +29,6 @@
 
 namespace teralens {
 
-
 using scalar = float;
 
 // Use a type system defined by the scalar type, in 2D, with 3 components per
@@ -49,7 +48,8 @@ using vector_type =
 
 /// Whether the evaluation order of primary rays should be reordered
 /// by grouping rays into tiles. This can reduce branch divergence
-/// during the tree walk.
+/// during the tree walk, and is generally recommended for execution
+/// on GPUs.
 #ifdef TERALENS_CPU_FALLBACK
 static constexpr bool reorder_primary_rays = false;
 #else
@@ -59,6 +59,9 @@ static constexpr bool reorder_primary_rays = true;
 
 /// The OpenCL group size for the primary ray tree queries
 #ifdef TERALENS_CPU_FALLBACK
+// A group size of 0 means that a cl::NullRange will be used
+// as local size, hence allowing the OpenCL implementation
+// to select the group size
 static constexpr std::size_t primary_ray_query_group_size = 32;
 #else
 static constexpr std::size_t primary_ray_query_group_size = 128;
@@ -85,7 +88,9 @@ static constexpr std::size_t max_brute_force_lenses = 64;
 /// Must be a power of two, and secondary_rays_per_cell^2
 /// must be a multiple of the warp size (32 for NVIDIA, 64
 /// for AMD) and 128 (the work group size for the evaluation
-/// of the lens equation)
+/// of the lens equation).
+/// Feel free to increase this for a cheap (in terms of runtime)
+/// increase in Signal/Noise.
 static constexpr std::size_t secondary_rays_per_cell = 32;
 /// Maximum number of primary rays processed in one batch.
 static constexpr std::size_t max_batch_size = 256*1024;
