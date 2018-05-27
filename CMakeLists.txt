@@ -52,13 +52,13 @@ include_directories(${PROJECT_BINARY_DIR} ${PROJECT_SOURCE_DIR} ${Boost_INCLUDE_
 
 add_executable(teralens_cpu src/teralens.cpp)
 add_executable(teralens_gpu src/teralens.cpp)
-add_executable(teralens_bench src/teralens_benchmark.cpp)
+add_executable(teralens_sampling_benchmark src/teralens_benchmark.cpp)
 
 target_compile_definitions(teralens_cpu PRIVATE TERALENS_CPU_FALLBACK)
 
 target_link_libraries (teralens_cpu ${OpenCL_LIBRARIES} ${Boost_PROGRAM_OPTIONS_LIBRARY} -lcfitsio)
 target_link_libraries (teralens_gpu ${OpenCL_LIBRARIES} ${Boost_PROGRAM_OPTIONS_LIBRARY} -lcfitsio)
-target_link_libraries (teralens_bench ${OpenCL_LIBRARIES} ${Boost_PROGRAM_OPTIONS_LIBRARY} -lcfitsio)
+target_link_libraries (teralens_sampling_benchmark ${OpenCL_LIBRARIES} ${Boost_PROGRAM_OPTIONS_LIBRARY} -lcfitsio)
 
 
 

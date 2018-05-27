@@ -22,6 +22,8 @@
 #include <iostream>
 #include <limits>
 #include <memory>
+#include <sstream>
+#include <fstream>
 
 #include <QCL/qcl.hpp>
 #include <QCL/qcl_array.hpp>
@@ -35,7 +37,9 @@
 #include "version.hpp"
 
 namespace po = boost::program_options;
+constexpr std::size_t num_performance_estimates = 10;
 
+using system_ptr = std::unique_ptr<teralens::lensing_system>;
 
 int main(int argc, char** argv)
 {
@@ -122,6 +126,9 @@ int main(int argc, char** argv)
                                 "Usually, this is not required, as the -cl-fast-relaxed-math flag is typically "
                                 "safe to use.")
         ("cl-options", po::value<std::string>(&cl_options), "Additional options for the OpenCL compiler")
+        ("performance-measurement-mode", "If set, calculations will be carried out several times and the "
+                                         "reported performance metrics will be the average of the different "
+                                         "runs.")
         ;
 
     // Evaluate command line
@@ -219,8 +226,11 @@ int main(int argc, char** argv)
                 << ctx->get_build_options()
                 << std::endl;
     }
+    bool benchmark_mode = false;
+    if(vm.count("performance-measurement-mode"))
+      benchmark_mode = true;
 
-    using system_ptr = std::unique_ptr<teralens::lensing_system>;
+
     system_ptr system;
 
     // If a star dump input filename was given, load stars from this file.
@@ -267,20 +277,52 @@ int main(int argc, char** argv)
     if(!star_dump_output_filename.empty())
       system->write_star_dump(star_dump_output_filename);
 
-
-    // Now the action begins!
-    // ...first construct magnification_pattern_generator object
-    teralens::magnification_pattern_generator generator{ctx, *system, std::cout};
-    // ...and execute the calculation. We end up with a pixel_screen object
-    // containing the ray counts for each pixel
-    qcl::device_array<int> pixel_screen =
+    qcl::device_array<int> pixel_screen;
+    if(!benchmark_mode)
+    {
+      // Now the action begins!
+      // ...first construct magnification_pattern_generator object
+      teralens::magnification_pattern_generator generator{ctx, *system, std::cout};
+      // ...and execute the calculation. We end up with a pixel_screen object
+      // containing the ray counts for each pixel
+      pixel_screen =
         generator.run(resolution, primary_rays_ppx, tree_opening_angle, brute_force_threshold);
 
-    std::cout << "Performance: "
-              << 1.0/generator.get_last_runtime() << " patterns/s, "
-              << generator.get_last_num_traced_rays()/generator.get_last_runtime() << " rays/s"
-              << std::endl;
+      std::cout << "Performance: "
+                << 1.0/generator.get_last_runtime() << " patterns/s, "
+                << generator.get_last_num_traced_rays()/generator.get_last_runtime() << " rays/s"
+                << std::endl;
+    }
+    else
+    {
+      // In benchmark mode, average performance over several runs and print detailed
+      // performance metrics
+      double total_time = 0.0;
+      std::size_t total_num_rays = 0;
+      std::string benchmark_log_file = output_filename + ".perf.dat";
+      std::ofstream performance_log{benchmark_log_file.c_str(), std::ios::trunc};
 
+      for(std::size_t i = 0; i < num_performance_estimates; ++i)
+      {
+        std::cout << "Processing performance measurement " << i << "..." << std::endl;
+        teralens::magnification_pattern_generator generator{ctx, *system, std::cout};
+        pixel_screen =
+            generator.run(resolution, primary_rays_ppx, tree_opening_angle, brute_force_threshold);
+        total_time += generator.get_last_runtime();
+        total_num_rays += generator.get_last_num_traced_rays();
+      }
+      double mean_time = total_time / num_performance_estimates;
+      std::stringstream output;
+      output << "#N_*\t t_tot [s]\t rays_tot\t t_pattern [s]\t patterns/s\t rays/s\t" << std::endl;
+      output << system->get_particles().size() << "\t "
+             << total_time << "\t " << total_num_rays
+             << "\t " << mean_time << "\t " << 1.0/mean_time << "\t "
+             << total_num_rays / total_time
+             << std::endl;
+      std::cout << output.str();
+      performance_log << output.str();
+
+    }
     // Copy results back to the CPU
     teralens::util::multi_array<int> image{resolution, resolution};
     pixel_screen.read(image.data(), pixel_screen.begin(), pixel_screen.end());

@@ -67,7 +67,7 @@ Here, `<path-to-Teralens-directory>` should be replaced with the path to the Ter
 If all went well, you should end up with several executables:
 * `teralens_cpu` -- CPU version of Teralens
 * `teralens_gpu` -- GPU version of Teralens
-* `teralens_bench` -- Teralens benchmark, measures how fast your hardware can generate magnification patterns. Currently, this program requires a GPU.
+* `teralens_sampling_benchmark` -- Teralens benchmark, measures how fast your hardware can generate magnification patterns. Currently, this program requires a GPU.
 
 You can test Teralens by just executing it without any command-line parameters. It will then create a magnification pattern named `teralens.fits` with a default set of parameters.
 Use the `--help` option to see the available command-line parameters and the default parameter set. In general, it is usually not necessary to modify the Teralens code since all important aspects can be configured via command-line parameters.
