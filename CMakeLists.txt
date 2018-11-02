@@ -60,6 +60,8 @@ target_link_libraries (teralens_cpu ${OpenCL_LIBRARIES} ${Boost_PROGRAM_OPTIONS_
 target_link_libraries (teralens_gpu ${OpenCL_LIBRARIES} ${Boost_PROGRAM_OPTIONS_LIBRARY} -lcfitsio)
 target_link_libraries (teralens_sampling_benchmark ${OpenCL_LIBRARIES} ${Boost_PROGRAM_OPTIONS_LIBRARY} -lcfitsio)
 
+install(TARGETS teralens_cpu teralens_gpu teralens_sampling_benchmark RUNTIME DESTINATION bin/)
+
 
 
 
