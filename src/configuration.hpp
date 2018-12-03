@@ -67,6 +67,16 @@ static constexpr std::size_t primary_ray_query_group_size = 32;
 static constexpr std::size_t primary_ray_query_group_size = 128;
 #endif
 
+// The OpenCL group size for the secondary ray tracing.
+// secondary_rays_per_cell^2 must be a multiple of this number.
+// Must be >= max_selected_particles, except for the CPU fallback
+// if allow_local_mem_on_cpu == false.
+#ifdef TERALENS_CPU_FALLBACK
+  static constexpr std::size_t secondary_ray_tracing_group_size = 32;
+#else
+  static constexpr std::size_t secondary_ray_tracing_group_size = 128;
+#endif
+
 /// Whether fused multiply-add instructions should be used
 static constexpr bool allow_fma_instructions = true;
 /// Whether multiply-add instructions should be used

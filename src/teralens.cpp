@@ -37,7 +37,11 @@
 #include "version.hpp"
 
 namespace po = boost::program_options;
+#ifdef TERALENS_CPU_FALLBACK
+constexpr std::size_t num_performance_estimates = 1;
+#else
 constexpr std::size_t num_performance_estimates = 10;
+#endif
 
 using system_ptr = std::unique_ptr<teralens::lensing_system>;
 

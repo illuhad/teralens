@@ -283,11 +283,8 @@ public:
 
     std::size_t total_num_rays_per_cell = secondary_rays_per_cell*secondary_rays_per_cell;
 
-#ifdef TERALENS_CPU_FALLBACK
-    cl::NDRange local_size = cl::NullRange;
-#else
     cl::NDRange local_size = cl::NDRange{group_size};
-#endif
+
 
     cl_int err = this->evaluate_lens_equation(_ctx,
                         cl::NDRange{total_num_rays_per_cell * cells_per_ray * num_primary_rays},
@@ -316,25 +313,33 @@ private:
   qcl::device_context_ptr _ctx;
   pixel_screen* _screen;
 
-  static constexpr std::size_t group_size = 128;
+#ifdef TERALENS_CPU_FALLBACK
+  static constexpr int cpu_fallback = 1;
+#else
+  static constexpr int cpu_fallback = 0;
+#endif
+  
+  static constexpr std::size_t group_size = secondary_ray_tracing_group_size;
+  
   static constexpr std::size_t groups_per_cell =
       (secondary_rays_per_cell*secondary_rays_per_cell)/group_size;
 
-
-  static_assert(group_size >= Max_particles_per_ray, "At least as many threads as the "
-                                                     "maximum particle number are required "
-                                                     "per primary ray");
+  static_assert((secondary_rays_per_cell*secondary_rays_per_cell) % group_size == 0,
+                "group size during secondary ray tracing must be a divisor of "
+                "secondary_rays_per_cell^2");
+  
+  static_assert((group_size >= Max_particles_per_ray) || 
+                // Don't trigger the assert when we're not using local memory
+                // (on CPU without allowing local memory)
+                (cpu_fallback && !allow_local_mem_on_cpu),
+                "At least as many threads as the maximum particle number are required "
+                "per primary ray");
   // Number of interpolation cells per primary ray in each dimension
   static constexpr std::size_t num_interpolation_cells = 2;
 
   static constexpr std::size_t cells_per_ray = num_interpolation_cells
                                              * num_interpolation_cells;
 
-#ifdef TERALENS_CPU_FALLBACK
-  static constexpr int cpu_fallback = 1;
-#else
-  static constexpr int cpu_fallback = 0;
-#endif
 
   QCL_ENTRYPOINT(evaluate_lens_equation)
   QCL_MAKE_SOURCE(
@@ -356,11 +361,8 @@ $pp if (cpu_fallback == 0) || (allow_local_mem_on_cpu == 1) $
 $pp   define USE_LOCAL_MEM $
 $pp endif $
 
-$pp if cpu_fallback == 0 $
 $pp   define KERNEL_ATTRIBUTES __attribute__((reqd_work_group_size(group_size, 1, 1))) $
-$pp else $
-$pp   define KERNEL_ATTRIBUTES $
-$pp endif $
+
 
       // id should be <= 3. Translates id into
       // 2d indices ranging from -1 to 0 in each component
