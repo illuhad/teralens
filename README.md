@@ -73,4 +73,4 @@ You can test Teralens by just executing it without any command-line parameters. 
 Use the `--help` option to see the available command-line parameters and the default parameter set. In general, it is usually not necessary to modify the Teralens code since all important aspects can be configured via command-line parameters.
 
 ## Troubleshooting
-If you encounter problems, please do not hesitate to drop me an email: alpay at stud.uni-heidelberg.de
+If you encounter problems, please do not hesitate to open an issue on github or drop me an email: aksel.alpay at uni-heidelberg.de
